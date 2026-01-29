@@ -5,7 +5,7 @@ project(gatt-client-test)
 find_package(PkgConfig REQUIRED)
 
 # CppuTest
-pkg_check_modules(CPPUTEST REQUIRED cpputest)
+pkg_check_modules(CPPUTEST REQUIRED CppuTest)
 include_directories(${CPPUTEST_INCLUDE_DIRS})
 link_directories(${CPPUTEST_LIBRARY_DIRS})
 link_libraries(${CPPUTEST_LIBRARIES})
@@ -27,7 +27,6 @@ set(SOURCES
 	../../src/btstack_util.c
 	../../src/hci_cmd.c
 	../../src/hci_dump.c
-	../../src/hci_event_builder.c
 	../../src/btstack_crypto.c
 	../../3rd-party/rijndael/rijndael.c
 )

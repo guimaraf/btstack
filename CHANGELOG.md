@@ -5,198 +5,16 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ---
+
 ## Unreleased
 
 ### Added
 ### Fixed
-### Changed
-
-## Release v1.8
-
-### Added
-- HCI: add hci_request_sco_can_send_now_event_for_con_handle
-- HCI: fix implicit flow control for small SCO buffers
-- HCI: provide status in GAP_EVENT_SECURITY_LEVEL
-- SM: provide CTKD Active field in SM_EVENT_PAIRING_COMPLETE
-- SM: emit SM_EVENT_SECURITY_REQUEST from Peripheral
-- SM: applications triggers pairing on SM_EVENT_SECURITY_REQUEST if ENABLE_EXPLICIT_PAIRING_ON_SECURITY_REQUEST
-- SM: emits GAP_SUBEVENT_BONDING_DELETED before storing updated bonding information and on gap_delete_bonding()
-- GATT Service: emit GATTSERVICE_SUBEVENT_GATT_DATABASE_HASH if ENABLE_GATT_CLIENT_CACHING
-- GATT Service Client: cache service and characteristic results in TLV if ENABLE_GATT_CLIENT_CACHING
-- Linked List: add get previous item function
-- Linear Buffer provides streaming inteface for existing memory buffer, see src/btstack_chunk_buffer.h
-- HCI Dump: Log printf into packet log with ENABLE_PRINTF_TO_LOG
-- Audio Implementation using SDL2
-- Audio Generator: wrapper for Silence, Sine, MOD- and Vorbis-Player and "Bridge" generators
-- Audio Player: combines supported audio generators into a unified player interface
-- Chipset: support LC3 offloading for Infineon and Realtek Controller
-- Port for Ezurio Vela IF820 dev kit
-- Port for WebAssembly running in Chrome-based browsers that support WebSerial API
-
-### Fixed
-- GAP: emit Dedicated Bonding Complete after link key was received
-- L2CAP: use L2CAP_CONNECTION_PIN_OR_LINK_KEY_MISSING status in connection complete event
-- RFCOMM: use L2CAP_CONNECTION_PIN_OR_LINK_KEY_MISSING status in connection complete event
-- HCI: fix association between iso streams and cis params via cis_id
-- RFCOMM: allow to trigger reconnect from failed channel open event
-- SM: Security Manager registers itself as first HCI packet handler
-- GATT Client: handle notifications and indications during MTU exchange
-- ATT Server: restore CCC for HCI_EVENT_ENCRYPTION_CHANGE_V2
-- HFP: rework event handling, fixes issue with parallel audio setup
-- HFP: emit service level connection after reporting indicator mapping
-
-### Changed
-- HCI: emit HCI_EVENT_SCO_CAN_SEND_NOW round robin
-- L2CAP: don't drop link key for connection response "security block"
-- HIDS Client: rename into HIDS Host to match HIDS Device
-  - src/ble/gatt-service/hids_client.* -> src/ble/gatt-service/hids_host.*
-  - MAX_NR_HIDS_CLIENTS -> MAX_NR_HIDS_HOSTS in btstack_config.h
-- btstack_audio: return 0 on success for source and sink init
-- btstack_audio: provide timeinfo in playback/recording callbacks for sample-accurate playback
-- libusb: allow to specify USB device with bus ID and port path
-- Zephyr: update port for Zephyr 4.2.0
-- Zephyr: support Ezurio M.2 Adapter for STM32 Nucleo-144 boards
-
-
-## Release v1.7
-
-### Added
-- HCI: support newer AIROC Controller that require Download Mode with ENABLE_AIROC_DOWNLOAD_MODE
-- GAP: simulate HCI_EVENT_REMOTE_NAME_REQUEST_COMPLETE if HCI Remote Name Request fails 
-- btstack_base64_encoder: add implementation
-- ATT DB: add gatt_server_get_database_hash
-- AVRCP Controller: Add send generic PASS THROUGH command
-- AVRCP Controller: handle response timout
-- AVRCP Controller: emit AVRCP_SUBEVENT_PLAYER_APPLICATION_SETTING_ATTRIBUTES_LIST event
-- AVRCP Controller: emit AVRCP_SUBEVENT_PLAYER_APPLICATION_SETTING_VALUES_LIST event
-- GATT Server: store Database Hash in TLV and discard stored CCCs if database changes
-- GATT Service Client: component that discovers characteristics and enables notifications/indications
-- HID Host: storage for HID Descriptors is now optional
-- HID Device: allow for SDP Record without Service Name attribute
-- Chipset: support for Realtek Controller with H4 transport, e.g. RTL8761CTV
-- Zephyr: provide hal_flash_bank implementation for native flash driver
-- Zephyr: explicit run loop and HCI transport implementations
-- POSIX: support error condition for file descriptors in btstack_run_loop
-- Linux: HCI Transport for Linux HCI Kernel Socket
-- Linux: Audio sink implementation for Linux ALSA
-- esp32: support stdin over USB Serial/JTAG Console
-- HID Keyboard Demo: Reconnect to last bonded device on startup
-- PBAP Client: add pbap_get_vcard_listing_size
-
-### Fixed
-- HCI: fix incorrect assert/regression in num completed packets handling introduced in 6ec1ca0
-- HCI: handle connection collision, ignore page timeout after incoming connection event
-- L2CAP: do not sent I-Frames in ERTM WAIT_F state
-- L2CAP: trigger retransmission for ERTM Reject and RR
-- L2CAP: fix transmission for ERTM if num rx buffers different from num tx buffers
-- RFCOMM: limit max frame size by size of outgoing buffer when ERTM enabled
-- BNEP: emit channel opened with ERROR_CODE_REMOTE_USER_TERMINATED_CONNECTION if connection cannot be set up
-- GAP: store link key for standard/non-SSP pairing
-- GAP: fix gap_sniff_subrating_configure
-- SM: fix pairing as Peripheral with Extended Advertising and LE Advertisement Set Terminated after Connection Complete 
-- AVRCP Target: fix UNIT INFO response
-- AVRCP Target: fix Set Absolute Volume Response
-- AVRCP Target: fix Get Element Attributes Response
-- AVDTP: trigger SEP discovery for incoming AVDTP connection after outgoing connection was triggered
-- HID Host: emit HID_SUBEVENT_INCOMING_CONNECTION if memory allocation fails
-- HFP AG: avoid recursion with synchronous HCI transport 
-- HFP HF: return ERROR_CODE_COMMAND_DISALLOWED if indicator is not enabled
-- HFP HF: send Apple Accessory information after service level connection
-- HFP HF: send phone service info with +CNUM
-- HFP HF: handle rfcomm messages larger than 255 bytes
+- HFP: use 'don't care' to accept SCO connections, fixes issue on ESP32
+- HFP: fix LC3-WB init
+- HFP AG: fix setup of audio connection in service level established event
  
 ### Changed
-- HCI: hci_request_cis_can_send_now_events for CIG in Central role will emit can send now events for all streams in group
-- HCI: improve sco send without sco flow control for smaller packets
-- HCI: use page scan repetition mode R1 for classic connections
-- L2CAP: return list of unknown options for invalid configuration request
-- GAP: validate params in gap_set_scan_params
-- GAP: emit Dedicated Bonding Complete after pairing without enabling encryption
-- SM: derive BR/EDR Link Key from LE LTK before sending DHKey Check
-- AVRCP Controller: avrcp_controller_query_player_application_setting_value_text queries subset of attribute values
-- AVRCP Controller: avrcp_controller_query_player_application_setting_attribute_text queries subset of attribute ids
-- HFP HF: replace HFP_SUBEVENT_ENHANCED_VOICE_RECOGNITION_AG_(READY_TO_ACCEPT_AUDIO_INPUT | IS_STARTING_SOUND | 
-          IS_PROCESSING_AUDIO_INPUT | MESSAGE) with a single HFP_SUBEVENT_ENHANCED_VOICE_RECOGNITION_AG_STATE event
-- HFP HF: introduce timeout of 5 seconds for receiving AG OK|ERROR response on VRA commands
-- HFP HF: notify all connected AGs on HF indicator change in hfp_hf_set_hf_indicator
-- HFP HF: emit HFP_SUBEVENT_VOICE_RECOGNITION_ACTIVATED with status code ERROR_CODE_UNSPECIFIED_ERROR if AG disables VRA before SCO
-- HID Host: remove HID_PROTOCOL_MODE_REPORT_WITH_FALLBACK_TO_BOOT
-- HID Host: emit HID_SUBEVENT_INCOMING_CONNECTION if memory allocation fails
-- GATT Compiler: make profile_data static to allow one per source file
-- esp32: rework build that avoids copy of btstack files into esp-idf components folder
-- esp32: provide skeleton project for out-of-tree builds
-- max32630-fthr: updated
-- POSIX: use -b for baudrate and -m for BD_ADDR on command line
-- POSIX-H4 variants: exit on power on failure
-- POSIX: rename posix-h4-bcm to posix-h4-airoc for newer AIROC Controllers
-- STM32: updated ports to STM32CubeF4 v1.28.0
-- Zephyr: update for Zephyr v4.0
-
-## Release v1.6.2
-
-### Added
-- btstack_util: safe wrappers for snprintf
-- btstack_version: provides BTstack major, minor, patch versions
-- HCI Dump: support ISO packets in PacketLogger format
-- HCI Dump Dispatch: allow to chain multiple HCI Dump implementations
-- GAP: support LE Connection Subrating with gap_request_connection_subrating
-- GATT Client: gatt_client_add_service_changed_handler to receive Service Changed and Database Hash events
-- GATT Client: various _with_context functions that provide a service + connection id to GATT query events
-- GATT Service Client: generic client discovers characteristics and enables notifications/indications
-- L2CAP: provide access to number of available credits in CBM/ECBM
-- AVDTP, A2DP: MPEG AAC capability and configuration events provide DRC field
-- AVRCP: support Browsing in Target role
-- HFP HF: support Apple Accessory information with:
-  - hfp_hf_apple_set_identification
-  - hfp_hf_apple_set_battery_level
-  - hfp_hf_apple_set_docked_state
-- HFP AG: report Apple Accessory information, battery level and docked state
-- HID Parser: introduce HID Descriptor and HID Descriptor Usage iterators
-- PBAP Client: allow to set start offset and max list count for pull phonebook operation
-- PBAP Client: create SDP record with pbap_client_create_sdp_record
-- PBAP Client: support multiple parallel connections
-- Battery Service v1.1 Server
-- Immediate Alert Service Server and Client: added
-- Link Loss Service Server and Client: added
-- TX Power Service Client: added
-- Chipset: support PatchRAM download on CYW5551x and CYW5557x
- 
-### Fixed
-- btstack_util: skip whitespace in btstack_atoi
-- L2CAP: Fix ERTM Tx buffer reconfiguration
-- RFCOMM: shut down multiplexer after closing last channel instead of multiplexer idle timer
-- RFCOMM: fix multiple outgoing channel setup
-- SDP Server: skip empty attribute lists in Service Search Attribute Response
-- HID Host: return complete HID report
-- SM: fix CTKD key distribution over BR/EDR
-- SM: fix CTKD after BR/EDR Role Change
-- A2DP: emit stream established if peer set-up configuration
-- AVDTP: fix SDP Client registration bug that could block other SDP queries
-- HFP HF: send HF Indicator update only if enabled by AG
-- HID Host: omit Report ID in Set/Get Report and send report for report id == HID_REPORT_ID_UNDEFINED
-- PBAP Client: fix PBAP_SUBEVENT_OPERATION_COMPLETED with OBEX_DISCONNECTED for pbap_disconnect
-- HIDS Client: emit disconnected event on HCI disconnect and free connection struct
-- Scan Parameter Service Client: emit disconnected event on HCI disconnect and free connection struct
-- POSIX: clear run loop exit flag
-- esp32: use synchronous VHCI API with newer ESP32 variants (esp32, -c3, and -s3 use asynchronous API)
-- 3rd-party: update hxcmod-player to fix GCC 11 warnings
-
-### Changed
-- HCI Dump: only log internal BTstack events if ENABLE_LOG_BTSTACK_EVENTS is defined
-- GAP: return command disallowed if disconnect already requested
-- GAP: improve handling of incorrectly resolved addresses in HCI_SUBEVENT_LE_CONNECTION_COMPLETE
-- GAP: only store link key if at least one side requests bonding during the IO Capabilities exchange.
-- GATT Client: use Find by Information Request to lookup CCCD for Notifications/Indications
-- SDP Client: trigger next SDP query callback, if registered callback does not start SDP query
-- BNEP Client: provide setup connection response in BNEP_EVENT_CHANNEL_OPENED
-- GOEP Client: remove goep_client_create_connection. Use goep_client_connect instead.
-- HID Parser: cleanup of function names and signatures
-- HIDS Client: use error code instead of ATT status in connected event
-- Device Information Service Server: update for v1.2
-- Device Information Service Client: update for v1.2
-- esp32: enable audio driver by default on esp32, esp32c3 and esp32c6
-- test: removed auto-pts support
-
 
 ## Release v1.6.1
 
@@ -208,7 +26,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - GAP: allow use of own address type different from gap_random_set_mode() incl. RPA in LE Extended Advertising
 - GAP: emit GAP_SUBEVENT_LE_CONNECTION_COMPLETE for failed outgoing connections
 - HCI: improved BIG setup/termination
-- L2CAP: set extended flow control bit in information response if enabled
 - SM: abort pairing with invalid parameter error for encryption key size > 16
 - SM: ignore Security Request after re-encryption has started
 - SM: respond to Pairing Request after Identity Resolution failed
@@ -246,9 +63,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - A2DP: support SDP record without service name and/or provider
 - AVRCP: support SDP record without service name and/or provider
 - HFP: hfp_hf_create_sdp_record_with_codecs and hfp_hf_create_sdp_record_with_codecs
-- HFP: support for LC3-SWB
 - HFP: support SDP record without service name
-- PABP Server: support SDP record without service name
+- HFP: support for LC3-SWB
 - SPP Server: support SDP record without service name
 - HOG Device: emit HIDS_SUBEVENT_SET_REPORT
 - HOG Device: provide report for GET REPORT operation via callback
@@ -367,7 +183,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - hci_dump_stdout: allow to truncate ACL, SCO and ISO packets with HCI_DUMP_STDOUT_MAX_SIZE_*
 - GATT Service: Broadcast Audio Scan Service Server and Client (BASS 1.0)
 - example/a2dp_source_demo: add command to scan and connect to Bluetooth speaker by class of device
-- OPP Server profile and OPP Server demo
 
 ### Fixed
 - GAP: reload LE Resolving List after power-cycle 
@@ -402,8 +217,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - GAP: support BIG with gap_big_create and gap_big_terminate
 - GAP: support BIG Sync gap_big_sync_create and gap_big_sync_terminate
 - GAP: support Periodic Advertisement Sync Transfer
-- PBAP Server profile and PBAP Server demo
-- OPP Client profile and OPP Client demo
 - port: CMake build files in all windows-* ports allow to use Visual Studio 2022
 - embedded audio: mono audio is played on both channels if HAVE_HAL_AUDIO_SINK_STEREO_ONLY is defined
 - Support for ESP32-C3 and ESP32-S3
@@ -429,7 +242,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - HFP HF: emit HFP_SUBEVENT_TRANSMIT_DTMF_CODES after sending DTMF command
 - GOEP Server
 - Chipset: support for firmware download and configuration of Realtek Controllers
-- PBAP Server and pbap_server_demo
 
 ### Fixed
 - GAP: fix gap_connect_cancel for gap_connect_with_whitelist
@@ -463,7 +275,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - ATT DB: provide gatt_server_get_handle_range_for_service_with_uuid16 to find included service within handle range
 - GATT Service: Audio Input Control Service Server (AICS 1.0)
 - GATT Service: Microphone Control Service Server (MCS 1.0)
-- GATT Service: Published Audio Capabilities Service Server (PACS 1.0)
 - GATT Service: Volume Control Service Server (VCS 1.0)
 - GATT Service: Volume Offset Control Service Server (VOCS 1.0)
 

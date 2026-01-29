@@ -16,6 +16,13 @@
  *
  ******************************************************************************/
 
+/**
+ * LC3 - Temporal Noise Shaping
+ *
+ * Reference : Low Complexity Communication Codec (LC3)
+ *             Bluetooth Specification v1.0
+ */
+
 #ifndef __LC3_TNS_H
 #define __LC3_TNS_H
 
@@ -75,9 +82,8 @@ void lc3_tns_put_data(lc3_bits_t *bits, const lc3_tns_data_t *data);
  * dt, bw          Duration and bandwidth of the frame
  * nbytes          Size in bytes of the frame
  * data            Bitstream data
- * return          0: Ok  -1: Invalid bitstream data
  */
-int lc3_tns_get_data(lc3_bits_t *bits,
+void lc3_tns_get_data(lc3_bits_t *bits,
     enum lc3_dt dt, enum lc3_bandwidth bw, int nbytes, lc3_tns_data_t *data);
 
 /**

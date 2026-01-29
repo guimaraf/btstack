@@ -82,10 +82,10 @@ void avrcp_target_create_sdp_record(uint8_t * service, uint32_t service_record_h
 
 static void
 avrcp_target_emit_operation(btstack_packet_handler_t callback, uint16_t avrcp_cid, avrcp_operation_id_t operation_id,
-                            bool button_pressed, uint8_t operands_length, uint8_t * operand) {
+                            bool button_pressed, uint8_t operands_length, uint8_t operand) {
     btstack_assert(callback != NULL);
 
-    uint8_t event[8 + AVRCP_MAX_COMMAND_PARAMETER_LENGTH];
+    uint8_t event[9];
     int pos = 0;
     event[pos++] = HCI_EVENT_AVRCP_META;
     event[pos++] = sizeof(event) - 2;
@@ -95,9 +95,8 @@ avrcp_target_emit_operation(btstack_packet_handler_t callback, uint16_t avrcp_ci
     event[pos++] = operation_id;
     event[pos++] = button_pressed ? 1 : 0;
     event[pos++] = operands_length; 
-    memcpy(&event[pos], operand, operands_length);
-    pos += operands_length;
-    (*callback)(HCI_EVENT_PACKET, 0, event, pos);
+    event[pos++] = operand; 
+    (*callback)(HCI_EVENT_PACKET, 0, event, sizeof(event));
 }
 
 static void avrcp_target_emit_volume_changed(btstack_packet_handler_t callback, uint16_t avrcp_cid, uint8_t absolute_volume){
@@ -127,50 +126,10 @@ static void avrcp_target_emit_respond_vendor_dependent_query(btstack_packet_hand
     (*callback)(HCI_EVENT_PACKET, 0, event, sizeof(event));
 }
 
-static void avrcp_target_emit_respond_play_item(btstack_packet_handler_t callback, uint16_t avrcp_cid, uint16_t uid_counter, avrcp_browsing_scope_t scope, uint8_t * uid){
-    btstack_assert(callback != NULL);
-
-    uint8_t event[16];
-    int pos = 0;
-    event[pos++] = HCI_EVENT_AVRCP_META;
-    event[pos++] = sizeof(event) - 2;
-    event[pos++] = AVRCP_SUBEVENT_PLAY_ITEM;
-    little_endian_store_16(event, pos, avrcp_cid);
-    pos += 2;
-    little_endian_store_16(event, pos, uid_counter);
-    pos += 2;
-    event[pos++] = (uint8_t) scope;
-    memcpy(&event[pos], uid, 8);
-    pos += 8;
-
-    (*callback)(HCI_EVENT_PACKET, 0, event, pos);
-}
-
-
-static void avrcp_target_emit_add_to_now_playing_item(btstack_packet_handler_t callback, uint16_t avrcp_cid, uint16_t uid_counter, avrcp_browsing_scope_t scope, uint8_t * uid){
-    btstack_assert(callback != NULL);
-
-    uint8_t event[16];
-    int pos = 0;
-    event[pos++] = HCI_EVENT_AVRCP_META;
-    event[pos++] = sizeof(event) - 2;
-    event[pos++] = AVRCP_SUBEVENT_ADD_TO_NOW_PLAYING;
-    little_endian_store_16(event, pos, avrcp_cid);
-    pos += 2;
-    little_endian_store_16(event, pos, uid_counter);
-    pos += 2;
-    event[pos++] = (uint8_t) scope;
-    memcpy(&event[pos], uid, 8);
-    pos += 8;
-
-    (*callback)(HCI_EVENT_PACKET, 0, event, pos);
-}
-
-
 // returns number of bytes stored
 static uint16_t avrcp_target_pack_single_element_header(uint8_t * buffer, avrcp_media_attribute_id_t attr_id, uint16_t attr_value_size){
     btstack_assert(attr_id > AVRCP_MEDIA_ATTR_ALL);
-    btstack_assert(attr_id < AVRCP_MEDIA_ATTR_NUM);
+    btstack_assert(attr_id < AVRCP_MEDIA_ATTR_RESERVED);
     uint16_t pos = 0;
     big_endian_store_32(buffer, pos, attr_id);
     big_endian_store_16(buffer, pos + 4, RFC2978_CHARSET_MIB_UTF8);
@@ -186,13 +145,13 @@ static uint16_t avrcp_now_playing_info_attr_id_value_len(avrcp_connection_t * co
         case AVRCP_MEDIA_ATTR_NONE:
             return 0;
         case AVRCP_MEDIA_ATTR_TRACK:
-            str_len = btstack_snprintf_assert_complete(buffer, sizeof(buffer), "%" PRIu32, connection->target_track_nr);
+            str_len = snprintf(buffer, sizeof(buffer), "%" PRIu32, connection->target_track_nr);
             break;
         case AVRCP_MEDIA_ATTR_TOTAL_NUM_ITEMS:
-            str_len = btstack_snprintf_assert_complete(buffer, sizeof(buffer), "%" PRIu32, connection->target_total_tracks);
+            str_len = snprintf(buffer, sizeof(buffer), "%" PRIu32, connection->target_total_tracks);
             break;
         case AVRCP_MEDIA_ATTR_SONG_LENGTH_MS:
-            str_len = btstack_snprintf_assert_complete(buffer, sizeof(buffer), "%" PRIu32, connection->target_song_length_ms);
+            str_len = snprintf(buffer, sizeof(buffer), "%" PRIu32, connection->target_song_length_ms);
             break;
         default:
             str_len = connection->target_now_playing_info[(uint16_t)attr_id - 1].len;
@@ -205,7 +164,7 @@ static uint16_t avrcp_now_playing_info_value_len_with_headers(avrcp_connection_t
     uint16_t playing_info_len = 0;
     
     uint8_t i;
-    for ( i = (uint8_t)AVRCP_MEDIA_ATTR_ALL + 1; i < (uint8_t) AVRCP_MEDIA_ATTR_NUM; i++){
+    for ( i = (uint8_t)AVRCP_MEDIA_ATTR_ALL + 1; i < (uint8_t) AVRCP_MEDIA_ATTR_RESERVED; i++){
         avrcp_media_attribute_id_t attr_id = (avrcp_media_attribute_id_t) i;
 
         if ((connection->target_now_playing_info_attr_bitmap & (1 << attr_id)) == 0) {
@@ -232,7 +191,7 @@ static uint8_t * avrcp_get_attribute_value_from_u32(avrcp_connection_t * connect
 
     if (connection->attribute_value_len == 0){
 		// "4294967296" = 10 chars + \0
-        connection->attribute_value_len = btstack_snprintf_assert_complete((char *)connection->attribute_value, 11, "%" PRIu32, value);
+        connection->attribute_value_len = snprintf((char *)connection->attribute_value, 11, "%" PRIu32, value);
         connection->attribute_value_offset = 0;
     }
     *num_bytes_to_copy = connection->attribute_value_len - connection->attribute_value_offset;
@@ -329,11 +288,12 @@ static void avrcp_send_response_with_avctp_fragmentation(avrcp_connection_t * co
     connection->avctp_packet_type = avctp_get_packet_type(connection, &max_payload_size);
     connection->avrcp_packet_type = avrcp_get_packet_type(connection);
 
-    uint16_t param_len = connection->data_len;
     // AVCTP header
     // transport header : transaction label | Packet_type | C/R | IPID (1 == invalid profile identifier)
     uint16_t pos = 0;
     packet[pos++] = (connection->transaction_id << 4) | (connection->avctp_packet_type << 2) | (AVRCP_RESPONSE_FRAME << 1) | 0;
+
+    uint16_t param_len = connection->data_len;
 
     if (connection->avctp_packet_type == AVCTP_START_PACKET){
         uint16_t max_frame_size = btstack_min(connection->l2cap_mtu, AVRCP_MAX_AV_C_MESSAGE_FRAME_SIZE);
@@ -352,7 +312,6 @@ static void avrcp_send_response_with_avctp_fragmentation(avrcp_connection_t * co
     switch (connection->avctp_packet_type) {
         case AVCTP_SINGLE_PACKET:
         case AVCTP_START_PACKET:
-            connection->data_offset = 0;
             // Profile IDentifier (PID)
             packet[pos++] = BLUETOOTH_SERVICE_CLASS_AV_REMOTE_CONTROL >> 8;
             packet[pos++] = BLUETOOTH_SERVICE_CLASS_AV_REMOTE_CONTROL & 0x00FF;
@@ -370,27 +329,23 @@ static void avrcp_send_response_with_avctp_fragmentation(avrcp_connection_t * co
                     big_endian_store_24(packet, pos, connection->company_id);
                     pos += 3;
                     packet[pos++] = connection->pdu_id;
+                    // AVRCP packet type
+
                     packet[pos++] = (uint8_t)connection->avrcp_packet_type;
+                    // parameter length
                     big_endian_store_16(packet, pos, param_len);
                     pos += 2;
 
                     switch (connection->pdu_id) {
                         // message is small enough to fit the single packet, no need for extra check
                         case AVRCP_PDU_ID_GET_CAPABILITIES:
-                            // we indicate an error by a param_len of 1 (valid requests cause larger responses)
-                            if (param_len == 1){
-                                // error code
-                                packet[pos++] = connection->data[0];
-                                l2cap_send_prepared(connection->l2cap_signaling_cid, pos);
-                                return;
-                            }
                             // capability ID
                             packet[pos++] = connection->data[0];
+                            // num_capabilities 
+                            packet[pos++] = connection->data[1];
 
                             switch ((avrcp_capability_id_t) connection->data[0]) {
                                 case AVRCP_CAPABILITY_ID_EVENT:
-                                    // store capability count
-                                    packet[pos++] = connection->data[1];
                                     for (i = (uint8_t) AVRCP_NOTIFICATION_EVENT_FIRST_INDEX;
                                          i < (uint8_t) AVRCP_NOTIFICATION_EVENT_LAST_INDEX; i++) {
                                         if ((connection->notifications_supported_by_target & (1 << i)) == 0) {
@@ -400,8 +355,6 @@ static void avrcp_send_response_with_avctp_fragmentation(avrcp_connection_t * co
                                     }
                                     break;
                                 case AVRCP_CAPABILITY_ID_COMPANY:
-                                    // store capability count
-                                    packet[pos++] = connection->data[1];
                                     // use Bluetooth SIG as default company
                                     for (i = 0; i < connection->data[1]; i++) {
                                         little_endian_store_24(packet, pos,
@@ -411,7 +364,6 @@ static void avrcp_send_response_with_avctp_fragmentation(avrcp_connection_t * co
                                     break;
                                 default:
                                     // error response
-                                    // no capability count
                                     break;
                             }
                             l2cap_send_prepared(connection->l2cap_signaling_cid, pos);
@@ -422,6 +374,8 @@ static void avrcp_send_response_with_avctp_fragmentation(avrcp_connection_t * co
                             max_payload_size--;
 
                             bytes_stored = avrcp_store_avctp_now_playing_info_fragment(connection, max_payload_size, packet + pos);
+
+                            connection->avrcp_frame_bytes_sent += bytes_stored + pos;
                             l2cap_send_prepared(connection->l2cap_signaling_cid, pos + bytes_stored);
                             return;
 
@@ -433,9 +387,12 @@ static void avrcp_send_response_with_avctp_fragmentation(avrcp_connection_t * co
 
                 case AVRCP_CMD_OPCODE_PASS_THROUGH:
                     packet[pos++] = connection->operation_id;
+                    // parameter length
                     packet[pos++] = (uint8_t) connection->data_len;
+                    pos += 2;
                     break;
                 case AVRCP_CMD_OPCODE_UNIT_INFO:
+                    break;
                 case AVRCP_CMD_OPCODE_SUBUNIT_INFO:
                     break;
                 default:
@@ -448,6 +405,8 @@ static void avrcp_send_response_with_avctp_fragmentation(avrcp_connection_t * co
             switch (connection->pdu_id) {
                 case AVRCP_PDU_ID_GET_ELEMENT_ATTRIBUTES:
                     bytes_stored = avrcp_store_avctp_now_playing_info_fragment(connection, max_payload_size, packet + pos);
+
+                    connection->avrcp_frame_bytes_sent += bytes_stored + pos;
                     l2cap_send_prepared(connection->l2cap_signaling_cid, pos + bytes_stored);
                     return;
 
@@ -466,6 +425,7 @@ static void avrcp_send_response_with_avctp_fragmentation(avrcp_connection_t * co
     (void)memcpy(packet + pos, &connection->data[connection->data_offset], bytes_to_copy);
     pos += bytes_to_copy;
     connection->data_offset += bytes_to_copy;
+    connection->avrcp_frame_bytes_sent += pos;
 
     l2cap_send_prepared(connection->l2cap_signaling_cid, pos);
 }
@@ -490,11 +450,12 @@ static void avrcp_target_custom_command_data_init(avrcp_connection_t * connectio
     connection->command_type = command_type;
     connection->subunit_type = subunit_type;
     connection->subunit_id = subunit_id;
-    connection->company_id = company_id;
+    connection->company_id = company_id << 16;
     connection->pdu_id = pdu_id;
     connection->data = NULL;
     connection->data_offset = 0;
     connection->data_len = 0;
+    connection->avrcp_frame_bytes_sent = 0;
 }
 
 static void avrcp_target_vendor_dependent_response_data_init(avrcp_connection_t * connection, avrcp_command_type_t command_type, avrcp_pdu_id_t pdu_id){
@@ -508,6 +469,7 @@ static void avrcp_target_vendor_dependent_response_data_init(avrcp_connection_t 
     connection->data = connection->message_body;
     connection->data_offset = 0;
     connection->data_len = 0;
+    connection->avrcp_frame_bytes_sent = 0;
 }
 
 static void avrcp_target_pass_through_command_data_init(avrcp_connection_t * connection, avrcp_command_type_t command_type, avrcp_operation_id_t opid){
@@ -523,6 +485,7 @@ static void avrcp_target_pass_through_command_data_init(avrcp_connection_t * con
     connection->data = connection->message_body;
     connection->data_offset = 0;
     connection->data_len = 0;
+    connection->avrcp_frame_bytes_sent = 0;
 }
 
 
@@ -585,21 +548,33 @@ static uint8_t avrcp_target_response_addressed_player_changed_interim(avrcp_conn
     return ERROR_CODE_SUCCESS;
 }
 
-static uint8_t avrcp_target_pass_through_response(uint16_t avrcp_cid, avrcp_command_type_t ctype, avrcp_operation_id_t opid, uint8_t operands_length, uint8_t * operand){
+static uint8_t avrcp_target_pass_through_response(uint16_t avrcp_cid, avrcp_command_type_t ctype, avrcp_operation_id_t opid, uint8_t operands_length, uint8_t operand){
     avrcp_connection_t * connection = avrcp_get_connection_for_avrcp_cid_for_role(AVRCP_TARGET, avrcp_cid);
     if (!connection){
         return ERROR_CODE_UNKNOWN_CONNECTION_IDENTIFIER; 
     }
     avrcp_target_pass_through_command_data_init(connection, ctype, opid);
-    connection->data_len = operands_length;
 
-    if (operands_length > 0){
-        memcpy(connection->message_body, operand, operands_length);
+    if (operands_length == 1){
+        connection->data_len = 1;
+        connection->message_body[0] = operand;
     }
     
     connection->state = AVCTP_W2_SEND_RESPONSE;
     avrcp_request_can_send_now(connection, connection->l2cap_signaling_cid);
     return ERROR_CODE_SUCCESS;
+}
+
+uint8_t avrcp_target_operation_rejected(uint16_t avrcp_cid, avrcp_operation_id_t opid, uint8_t operands_length, uint8_t operand){
+    return avrcp_target_pass_through_response(avrcp_cid, AVRCP_CTYPE_RESPONSE_REJECTED, opid, operands_length, operand);
+}
+
+uint8_t avrcp_target_operation_accepted(uint16_t avrcp_cid, avrcp_operation_id_t opid, uint8_t operands_length, uint8_t operand){
+    return avrcp_target_pass_through_response(avrcp_cid, AVRCP_CTYPE_RESPONSE_ACCEPTED, opid, operands_length, operand);
+}
+
+uint8_t avrcp_target_operation_not_implemented(uint16_t avrcp_cid, avrcp_operation_id_t opid, uint8_t operands_length, uint8_t operand){
+    return avrcp_target_pass_through_response(avrcp_cid, AVRCP_CTYPE_RESPONSE_ACCEPTED, opid, operands_length, operand);
 }
 
 uint8_t avrcp_target_set_unit_info(uint16_t avrcp_cid, avrcp_subunit_type_t unit_type, uint32_t company_id){
@@ -637,7 +612,7 @@ static uint8_t avrcp_target_unit_info(avrcp_connection_t * connection){
     connection->data = connection->message_body;
     connection->data_len = 5;
     connection->data[0] = 0x07;
-    connection->data[1] = (connection->target_unit_type << 3) | unit;
+    connection->data[1] = (connection->target_unit_type << 4) | unit;
     // company id is 3 bytes long
     big_endian_store_24(connection->data, 2, connection->company_id);
 
@@ -764,6 +739,7 @@ static uint8_t avrcp_target_store_media_attr(avrcp_connection_t * connection, av
     int index = attr_id - 1;
     if (!value) return AVRCP_STATUS_INVALID_PARAMETER;
 	uint16_t value_len = (uint16_t)strlen(value);
+	btstack_assert(value_len <= 255);
 	connection->target_now_playing_info[index].value = (uint8_t*)value;
     connection->target_now_playing_info[index].len   = value_len;
     return ERROR_CODE_SUCCESS;
@@ -865,21 +841,6 @@ uint8_t avrcp_target_addressed_player_changed(uint16_t avrcp_cid, uint16_t playe
     return ERROR_CODE_SUCCESS;
 }
 
-uint8_t avrcp_target_uids_changed(uint16_t avrcp_cid, uint16_t uid_counter){
-    avrcp_connection_t * connection = avrcp_get_connection_for_avrcp_cid_for_role(AVRCP_TARGET, avrcp_cid);
-    if (!connection){
-        return ERROR_CODE_UNKNOWN_CONNECTION_IDENTIFIER;
-    }
-
-    connection->target_uid_counter = uid_counter;
-
-    if (connection->notifications_enabled & (1 << AVRCP_NOTIFICATION_EVENT_UIDS_CHANGED)) {
-        connection->target_uids_changed = true;
-        avrcp_request_can_send_now(connection, connection->l2cap_signaling_cid);
-    }
-    return ERROR_CODE_SUCCESS;
-}
-
 uint8_t avrcp_target_battery_status_changed(uint16_t avrcp_cid, avrcp_battery_status_t battery_status){
     avrcp_connection_t * connection = avrcp_get_connection_for_avrcp_cid_for_role(AVRCP_TARGET, avrcp_cid);
     if (!connection){
@@ -959,7 +920,7 @@ static bool avcrp_operation_id_is_valid(avrcp_operation_id_t operation_id){
     
     if (operation_id < AVRCP_OPERATION_ID_F1) return false;
     if (operation_id < AVRCP_OPERATION_ID_RESERVED_6) return true;
-    if (operation_id < AVRCP_OPERATION_ID_RESERVED_7) return true;
+    
     return false;
 }
 
@@ -1056,8 +1017,7 @@ static void avrcp_handle_l2cap_data_packet_for_signaling_connection(avrcp_connec
     avrcp_pdu_id_t   pdu_id;
     // connection->data_len = 0;
     uint8_t offset;
-    uint8_t * operand;
-    uint8_t operation_data_field_length;
+    uint8_t operand;
     uint16_t event_mask;
     avrcp_operation_id_t operation_id;
 
@@ -1077,27 +1037,20 @@ static void avrcp_handle_l2cap_data_packet_for_signaling_connection(avrcp_connec
         case AVRCP_CMD_OPCODE_PASS_THROUGH:
             if (size < 8) return;
             log_info("AVRCP_OPERATION_ID 0x%02x, operands length %d", packet[6], packet[7]);
-
             operation_id = (avrcp_operation_id_t) (packet[6] & 0x7f);
-            operation_data_field_length = packet[7];
-
-            operand = NULL;
-            if ((operation_data_field_length > 0u) && (size >= 9u)){
-                operand = &packet[8];
-            }
-
-            if (operation_data_field_length > sizeof(connection->message_body)){
-                log_error("PASS_THROUGH cmd vendor dependent information does not fit into local buffer");
-                avrcp_target_pass_through_response(connection->avrcp_cid, AVRCP_CTYPE_RESPONSE_REJECTED, (avrcp_operation_id_t) packet[6], 0, NULL);
-                break;
+            operand = 0;
+            if ((packet[7] >= 1) && (size >= 9)){
+                operand = packet[8];
             }
 
             if (avcrp_operation_id_is_valid(operation_id)){
-                bool button_pressed = (packet[6] & 0x80) == 0u;
-                avrcp_target_pass_through_response(connection->avrcp_cid, AVRCP_CTYPE_RESPONSE_ACCEPTED, operation_id, operation_data_field_length, operand);
-                avrcp_target_emit_operation(avrcp_target_context.avrcp_callback, connection->avrcp_cid, operation_id, button_pressed, operation_data_field_length, operand);
+                bool button_pressed = (packet[6] & 0x80) == 0;
+            
+                avrcp_target_operation_accepted(connection->avrcp_cid, (avrcp_operation_id_t) packet[6], packet[7], operand);
+                avrcp_target_emit_operation(avrcp_target_context.avrcp_callback, connection->avrcp_cid,
+                                                operation_id, button_pressed, packet[7], operand);
             } else {
-                avrcp_target_pass_through_response(connection->avrcp_cid, AVRCP_CTYPE_RESPONSE_NOT_IMPLEMENTED, operation_id, operation_data_field_length, operand);
+                avrcp_target_operation_not_implemented(connection->avrcp_cid, (avrcp_operation_id_t) packet[6], packet[7], operand);
             }
             break;
     
@@ -1118,65 +1071,9 @@ static void avrcp_handle_l2cap_data_packet_for_signaling_connection(avrcp_connec
             length = big_endian_read_16(packet, pos);
             pos += 2;
             // pos = 13
-            if ((pos + length) != size){
-                avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_PARAMETER_CONTENT_ERROR);
-                return;
-            }
-
             switch (pdu_id){
-                case AVRCP_PDU_ID_ADD_TO_NOW_PLAYING:
-                    // Scope(1) + UUID(8) + UID Counter(2)
-                    if (length != 11){
-                        avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_PARAMETER_CONTENT_ERROR);
-                        return;
-                    }
-
-                    connection->target_scope = packet[pos++];
-                    if (connection->target_scope >= AVRCP_BROWSING_RFU){
-                        avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_INVALID_PARAMETER);
-                        return;
-                    }
-                    // The CT shall not send an AddToNowPlaying command with the scope set to Media Player List
-                    if (connection->target_scope == AVRCP_BROWSING_MEDIA_PLAYER_LIST){
-                        avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_INVALID_SCOPE);
-                        return;
-                    }
-
-                    memcpy(connection->target_track_id, &packet[pos], 8);
-                    pos += 8;
-                    connection->target_uid_counter = big_endian_read_16(packet,pos);
-
-                    connection->state = AVCTP_W2_CHECK_DATABASE;
-                    avrcp_target_emit_add_to_now_playing_item(avrcp_target_context.avrcp_callback, connection->avrcp_cid, connection->target_uid_counter, connection->target_scope,connection->target_track_id);
-                    break;
-
-                case AVRCP_PDU_ID_PLAY_ITEM:
-                    // Scope(1) + UUID(8) + UID Counter(2)
-                    if (length != 11){
-                        avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_PARAMETER_CONTENT_ERROR);
-                        return;
-                    }
-
-                    connection->target_scope = packet[pos++];
-                    if (connection->target_scope >= AVRCP_BROWSING_RFU){
-                        avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_INVALID_PARAMETER);
-                        return;
-                    }
-
-                    memcpy(connection->target_track_id, &packet[pos], 8);
-                    pos += 8;
-                    connection->target_uid_counter = big_endian_read_16(packet,pos);
-
-                    connection->state = AVCTP_W2_CHECK_DATABASE;
-                    avrcp_target_emit_respond_play_item(avrcp_target_context.avrcp_callback, connection->avrcp_cid, connection->target_uid_counter, connection->target_scope,connection->target_track_id);
-                    break;
-
                 case AVRCP_PDU_ID_SET_ADDRESSED_PLAYER:{
-                    // Player Id (2)
-                    if (length != 2){
-                        avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_PARAMETER_CONTENT_ERROR);
-                        return;
-                    }
+                    if ((pos + 2) > size) return;
                     bool ok = length == 4;
                     if (avrcp_target_context.set_addressed_player_callback != NULL){
                         uint16_t player_id = big_endian_read_16(packet, pos);
@@ -1190,11 +1087,6 @@ static void avrcp_handle_l2cap_data_packet_for_signaling_connection(avrcp_connec
                     break;
                 }
                 case AVRCP_PDU_ID_GET_CAPABILITIES:{
-                    // CapabilityID (1)
-                    if (length != 1){
-                        avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_PARAMETER_CONTENT_ERROR);
-                        return;
-                    }
                     avrcp_capability_id_t capability_id = (avrcp_capability_id_t) packet[pos];
                     switch (capability_id){
                         case AVRCP_CAPABILITY_ID_EVENT:
@@ -1209,29 +1101,17 @@ static void avrcp_handle_l2cap_data_packet_for_signaling_connection(avrcp_connec
                     }
                     break;
                 }
-
                 case AVRCP_PDU_ID_GET_PLAY_STATUS:
                     avrcp_target_emit_respond_vendor_dependent_query(avrcp_target_context.avrcp_callback, connection->avrcp_cid, AVRCP_SUBEVENT_PLAY_STATUS_QUERY);
                     break;
-
                 case AVRCP_PDU_ID_REQUEST_ABORT_CONTINUING_RESPONSE:
-                    // PDU_ID (1)
-                    if (length != 1){
-                        avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_PARAMETER_CONTENT_ERROR);
-                        return;
-                    }
+                    if ((pos + 1) > size) return;
                     connection->target_abort_continue_response = true;
-
                     connection->state = AVCTP_W2_SEND_RESPONSE;
                     avrcp_request_can_send_now(connection, connection->l2cap_signaling_cid);
                     break;
-
                 case AVRCP_PDU_ID_REQUEST_CONTINUING_RESPONSE:
-                    // PDU_ID (1)
-                    if (length != 1){
-                        avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_PARAMETER_CONTENT_ERROR);
-                        return;
-                    }
+                    if ((pos + 1) > size) return;
                     if (packet[pos] != AVRCP_PDU_ID_GET_ELEMENT_ATTRIBUTES){
                         avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_INVALID_COMMAND);
                         return;
@@ -1241,14 +1121,8 @@ static void avrcp_handle_l2cap_data_packet_for_signaling_connection(avrcp_connec
                     connection->state = AVCTP_W2_SEND_RESPONSE;
                     avrcp_request_can_send_now(connection, connection->l2cap_signaling_cid);
                     break;
-
                 case AVRCP_PDU_ID_GET_ELEMENT_ATTRIBUTES:{
-                    // Identifier(8) + NumAttributes(1)
-                    if (length < 9){
-                        avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_PARAMETER_CONTENT_ERROR);
-                        return;
-                    }
-
+                    if ((pos + 9) > size) return;
                     uint8_t play_identifier[8];
                     memset(play_identifier, 0, 8);
                     if (memcmp(&packet[pos], play_identifier, 8) != 0) {
@@ -1257,38 +1131,20 @@ static void avrcp_handle_l2cap_data_packet_for_signaling_connection(avrcp_connec
                     }
                     pos += 8;
                     uint8_t attribute_count = packet[pos++];
-
-                    // AttributeID(4) * NumAttributes
-                    if ((pos + attribute_count * 4) != size){
-                        avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_PARAMETER_CONTENT_ERROR);
-                        return;
-                    }
-
                     connection->next_attr_id = AVRCP_MEDIA_ATTR_NONE;
-                    connection->target_now_playing_info_attr_bitmap = 0u;
-
-                    if (attribute_count == 0){
-                        // If attribute_count is set to zero, all attribute information shall be returned
+                    if (!attribute_count){
                         connection->next_attr_id = AVRCP_MEDIA_ATTR_TITLE;
                         connection->target_now_playing_info_attr_bitmap = 0xFE;
                     } else {
-                        uint8_t now_playing_info_attr_bitmap = 0u;
-                        uint8_t i;
+                        int i;
+                        connection->next_attr_id = AVRCP_MEDIA_ATTR_TITLE;
+                        connection->target_now_playing_info_attr_bitmap = 0;
+                        if ((pos + attribute_count * 4) > size) return;
                         for (i=0; i < attribute_count; i++){
                             uint32_t attr_id = big_endian_read_32(packet, pos);
-
-                            if ((attr_id < AVRCP_MEDIA_ATTR_TITLE) || (attr_id >= AVRCP_MEDIA_ATTR_SONG_LENGTH_MS)){
-                                // we do not support Cover Art in target
-                                avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_PARAMETER_CONTENT_ERROR);
-                                return;
-                            }
-                            if (connection->next_attr_id == AVRCP_MEDIA_ATTR_NONE){
-                                connection->next_attr_id = (avrcp_media_attribute_id_t) attr_id;
-                            }
-                            now_playing_info_attr_bitmap |= (1 << attr_id);
+                            connection->target_now_playing_info_attr_bitmap |= (1 << attr_id);
                             pos += 4;
                         }
-                        connection->target_now_playing_info_attr_bitmap = now_playing_info_attr_bitmap;
                     }
                     log_info("target_now_playing_info_attr_bitmap 0x%02x", connection->target_now_playing_info_attr_bitmap);
                     connection->target_now_playing_info_response = true;
@@ -1296,13 +1152,8 @@ static void avrcp_handle_l2cap_data_packet_for_signaling_connection(avrcp_connec
                     avrcp_request_can_send_now(connection, connection->l2cap_signaling_cid);
                     break;
                 }
-
                 case AVRCP_PDU_ID_REGISTER_NOTIFICATION:{
-                    // EventID(1)
-                    if (length < 1){
-                        avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_PARAMETER_CONTENT_ERROR);
-                        return;
-                    }
+                    if ((pos + 1) > size) return;
                     avrcp_notification_event_id_t event_id = (avrcp_notification_event_id_t) packet[pos];
 
                     avrcp_target_set_transaction_label_for_notification(connection, event_id, connection->transaction_id);
@@ -1316,6 +1167,7 @@ static void avrcp_handle_l2cap_data_packet_for_signaling_connection(avrcp_connec
                     switch (event_id){
                         case AVRCP_NOTIFICATION_EVENT_AVAILABLE_PLAYERS_CHANGED:
                         case AVRCP_NOTIFICATION_EVENT_PLAYER_APPLICATION_SETTING_CHANGED:
+                        case AVRCP_NOTIFICATION_EVENT_UIDS_CHANGED:
                         case AVRCP_NOTIFICATION_EVENT_TRACK_REACHED_END:
                         case AVRCP_NOTIFICATION_EVENT_TRACK_REACHED_START:
                         case AVRCP_NOTIFICATION_EVENT_PLAYBACK_POS_CHANGED:
@@ -1331,22 +1183,8 @@ static void avrcp_handle_l2cap_data_packet_for_signaling_connection(avrcp_connec
                     connection->notifications_enabled |= event_mask;
                             
                     switch (event_id){
-                        case AVRCP_NOTIFICATION_EVENT_UIDS_CHANGED:{
-                            if (connection->target_uid_counter == 0){
-                                connection->target_uid_counter = 1;
-                            }
-                            uint8_t value[2];
-                            big_endian_store_16(value, 0, connection->target_uid_counter);
-                            avrcp_target_response_vendor_dependent_interim(connection, pdu_id, event_id, value, 2);
-                            break;
-                        }
-
                         case AVRCP_NOTIFICATION_EVENT_TRACK_CHANGED:
                             if (connection->target_track_selected){
-                                if (connection->target_total_tracks > 0){
-                                    avrcp_target_response_vendor_dependent_interim(connection, pdu_id, event_id, connection->target_track_id, 8);
-                                    break;
-                                }
                                 avrcp_target_response_vendor_dependent_interim(connection, pdu_id, event_id, AVRCP_NOTIFICATION_TRACK_SELECTED, 8);
                             } else {
                                 avrcp_target_response_vendor_dependent_interim(connection, pdu_id, event_id, AVRCP_NOTIFICATION_TRACK_NOT_SELECTED, 8);
@@ -1373,19 +1211,20 @@ static void avrcp_handle_l2cap_data_packet_for_signaling_connection(avrcp_connec
                     }
                     break;
                 }
-
-                case AVRCP_PDU_ID_SET_ABSOLUTE_VOLUME:
-                    // Absolute Volume(1)
-                    if (length != 1){
-                        avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_PARAMETER_CONTENT_ERROR);
+                case AVRCP_PDU_ID_SET_ABSOLUTE_VOLUME: {
+                    if ( (length != 1) || ((pos + 1) > size)){
+                        avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_INVALID_COMMAND);
                         break;
                     }
 
-                    connection->target_absolute_volume = packet[pos] & 0x7F;
+                    uint8_t absolute_volume = packet[pos];
+                    if (absolute_volume < 0x80){
+                        connection->target_absolute_volume = absolute_volume;
+                    }
                     avrcp_target_emit_volume_changed(avrcp_target_context.avrcp_callback, connection->avrcp_cid, connection->target_absolute_volume);
                     avrcp_target_vendor_dependent_response_accept(connection, pdu_id, connection->target_absolute_volume);
                     break;
-
+                }
                 default:
                     log_info("AVRCP target: unhandled pdu id 0x%02x", pdu_id);
                     avrcp_target_response_vendor_dependent_reject(connection, pdu_id, AVRCP_STATUS_INVALID_COMMAND);
@@ -1544,14 +1383,6 @@ static void avrcp_target_packet_handler(uint8_t packet_type, uint16_t channel, u
                 break;
             }
 
-            if (connection->target_uids_changed){
-                connection->target_uids_changed = false;
-                notification_id = AVRCP_NOTIFICATION_EVENT_UIDS_CHANGED;
-                uint8_t value[2];
-                big_endian_store_16(value, 0, connection->target_uid_counter);
-                avrcp_target_notification_init(connection, notification_id, value, 2);
-                break;
-            }
             // nothing to send, exit
             return;
 
@@ -1584,24 +1415,4 @@ void avrcp_target_register_set_addressed_player_handler(bool (*callback)(uint16_
     avrcp_target_context.set_addressed_player_callback = callback;
 }
 
-static uint8_t avrcp_target_send_status_response(uint16_t avrcp_cid, avrcp_pdu_id_t pdu_id, avrcp_status_code_t status){
-    avrcp_connection_t * connection = avrcp_get_connection_for_avrcp_cid_for_role(avrcp_cid, AVRCP_TARGET);
-    if (connection == NULL){
-        return ERROR_CODE_COMMAND_DISALLOWED;
-    }
-    if (connection->state != AVCTP_W2_CHECK_DATABASE){
-        return ERROR_CODE_COMMAND_DISALLOWED;
-    }
-    if (status != AVRCP_STATUS_SUCCESS){
-        return avrcp_target_response_vendor_dependent_reject(connection, pdu_id, status);
-    }
-    return avrcp_target_vendor_dependent_response_accept(connection, pdu_id, status);
-}
 
-uint8_t avrcp_target_send_response_for_play_item_cmd(uint16_t avrcp_cid, avrcp_status_code_t status){
-    return avrcp_target_send_status_response(avrcp_cid, AVRCP_PDU_ID_PLAY_ITEM, status);
-}
-
-uint8_t avrcp_target_send_response_for_add_to_now_playing_cmd(uint16_t avrcp_cid, avrcp_status_code_t status){
-    return avrcp_target_send_status_response(avrcp_cid, AVRCP_PDU_ID_ADD_TO_NOW_PLAYING, status);
-}

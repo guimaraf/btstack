@@ -56,7 +56,10 @@
 
 #define MAX_ATTRIBUTE_VALUE_SIZE 300
 
-static const char * remote_addr_string = "00:1A:7D:DA:71:01";
+// MBP 2016 static const char * remote_addr_string = "F4-0F-24-3B-1B-E1";
+// iMpulse static const char * remote_addr_string = "64:6E:6C:C1:AA:B5";
+// Logitec 
+static const char * remote_addr_string = "00:1F:20:86:DF:52";
 
 static bd_addr_t remote_addr;
 
@@ -122,7 +125,7 @@ static enum {
 
 static uint16_t hid_host_cid = 0;
 static bool     hid_host_descriptor_available = false;
-static hid_protocol_mode_t hid_host_report_mode = HID_PROTOCOL_MODE_REPORT;
+static hid_protocol_mode_t hid_host_report_mode = HID_PROTOCOL_MODE_REPORT_WITH_FALLBACK_TO_BOOT;
 
 /* @section Main application configuration
  *
@@ -157,9 +160,6 @@ static void hid_host_setup(void){
     hci_event_callback_registration.callback = &packet_handler;
     hci_add_event_handler(&hci_event_callback_registration);
 
-    // make discoverable to allow HID device to initiate connection
-    gap_discoverable_control(1);
-
     // Disable stdout buffering
     setvbuf(stdin, NULL, _IONBF, 0);
 }
@@ -176,44 +176,6 @@ static void hid_host_setup(void){
 
 #define NUM_KEYS 6
 static uint8_t last_keys[NUM_KEYS];
-static bool hid_host_caps_lock;
-
-static uint16_t hid_host_led_report_id;
-static uint8_t  hid_host_led_report_len;
-static uint8_t  hid_host_led_caps_lock_bit;
-
-static void hid_host_set_leds(void){
-    if (hid_host_led_report_len == 0) return;
-
-    uint8_t output_report[8];
-
-    uint8_t caps_lock_report_offset = hid_host_led_caps_lock_bit >> 3;
-    if (caps_lock_report_offset >= sizeof(output_report)) return;
-
-    memset(output_report, 0, sizeof(output_report));
-    if (hid_host_caps_lock){
-        output_report[caps_lock_report_offset] = 1 << (hid_host_led_caps_lock_bit & 0x07);
-    }
-    hid_host_send_report(hid_host_cid, hid_host_led_report_id, output_report, hid_host_led_report_len);
-}
-
-static void hid_host_demo_lookup_caps_lock_led(void){
-    btstack_hid_usage_iterator_t iterator;
-    const uint8_t *hid_descriptor = hid_descriptor_storage_get_descriptor_data(hid_host_cid);
-    const uint16_t hid_descriptor_len = hid_descriptor_storage_get_descriptor_len(hid_host_cid);
-    btstack_hid_usage_iterator_init(&iterator, hid_descriptor, hid_descriptor_len, HID_REPORT_TYPE_OUTPUT);
-    while (btstack_hid_usage_iterator_has_more(&iterator)){
-        btstack_hid_usage_item_t item;
-        btstack_hid_usage_iterator_get_item(&iterator, &item);
-        if (item.usage_page == HID_USAGE_PAGE_LED && item.usage == HID_USAGE_LED_CAPS_LOCK){
-            hid_host_led_report_id     = item.report_id;
-            hid_host_led_report_len    = btstack_hid_get_report_size_for_id(hid_host_led_report_id, HID_REPORT_TYPE_OUTPUT, hid_descriptor, hid_descriptor_len);
-            hid_host_led_caps_lock_bit = (uint8_t) item.bit_pos;
-            printf("Found CAPS LOCK in Output Report with ID 0x%04x at bit %3u\n", hid_host_led_report_id, hid_host_led_caps_lock_bit);
-        }
-    }
-}
-
 static void hid_host_handle_interrupt_report(const uint8_t * report, uint16_t report_len){
     // check if HID Input Report
     if (report_len < 1) return;
@@ -228,11 +190,10 @@ static void hid_host_handle_interrupt_report(const uint8_t * report, uint16_t re
         hid_descriptor_storage_get_descriptor_len(hid_host_cid), 
         HID_REPORT_TYPE_INPUT, report, report_len);
 
-    bool shift = hid_host_caps_lock;
+    int shift = 0;
     uint8_t new_keys[NUM_KEYS];
     memset(new_keys, 0, sizeof(new_keys));
     int     new_keys_count = 0;
-
     while (btstack_hid_parser_has_more(&parser)){
         uint16_t usage_page;
         uint16_t usage;
@@ -240,19 +201,13 @@ static void hid_host_handle_interrupt_report(const uint8_t * report, uint16_t re
         btstack_hid_parser_get_field(&parser, &usage_page, &usage, &value);
         if (usage_page != 0x07) continue;   
         switch (usage){
-            case HID_USAGE_KEY_KEYBOARD_CAPS_LOCK:
-                // Toggle Caps Lock
-                hid_host_caps_lock = !hid_host_caps_lock;
-                // update LEDs
-                hid_host_set_leds();
-                break;
-            case HID_USAGE_KEY_KEYBOARD_LEFTSHIFT:
-            case HID_USAGE_KEY_KEYBOARD_RIGHTSHIFT:
+            case 0xe1:
+            case 0xe6:
                 if (value){
                     shift = 1;
                 }
                 continue;
-            case HID_USAGE_KEY_RESERVED:
+            case 0x00:
                 continue;
             default:
                 break;
@@ -283,7 +238,6 @@ static void hid_host_handle_interrupt_report(const uint8_t * report, uint16_t re
             continue;
         }
         printf("%c", key);
-        fflush(stdout);
     }
     memcpy(last_keys, new_keys, NUM_KEYS);
 }
@@ -343,18 +297,11 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                     switch (hci_event_hid_meta_get_subevent_code(packet)){
 
                         case HID_SUBEVENT_INCOMING_CONNECTION:
-                            // There is an incoming connection: we can accept it or decline it
-
-                            // If there are no resources to handle the connection,
-                            // the status will be ERROR_CODE_MEMORY_CAPACITY_EXCEEDED
-
-                            // The hid_host_report_mode in the hid_host_accept_connection function
-                            // allows the application to request a protocol mode.
-
-                            // For available protocol modes, see hid_protocol_mode_t in btstack_hid.h file.
-                            if (hid_subevent_incoming_connection_get_status(packet) == ERROR_CODE_SUCCESS) {
-                                hid_host_accept_connection(hid_subevent_incoming_connection_get_hid_cid(packet), hid_host_report_mode);
-                            }
+                            // There is an incoming connection: we can accept it or decline it.
+                            // The hid_host_report_mode in the hid_host_accept_connection function 
+                            // allows the application to request a protocol mode. 
+                            // For available protocol modes, see hid_protocol_mode_t in btstack_hid.h file. 
+                            hid_host_accept_connection(hid_subevent_incoming_connection_get_hid_cid(packet), hid_host_report_mode);
                             break;
                         
                         case HID_SUBEVENT_CONNECTION_OPENED:
@@ -370,8 +317,6 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                             app_state = APP_CONNECTED;
                             hid_host_descriptor_available = false;
                             hid_host_cid = hid_subevent_connection_opened_get_hid_cid(packet);
-                            hid_host_caps_lock = false;
-                            hid_host_led_report_len = 0;
                             printf("HID Host connected.\n");
                             break;
 
@@ -386,7 +331,6 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                             if (status == ERROR_CODE_SUCCESS){
                                 hid_host_descriptor_available = true;
                                 printf("HID Descriptor available, please start typing.\n");
-                                hid_host_demo_lookup_caps_lock_led();
                             } else {
                                 printf("Cannot handle input report, HID Descriptor is not available, status 0x%02x\n", status);
                             }

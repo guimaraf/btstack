@@ -52,8 +52,6 @@
 #include "btstack_linked_list.h"
 #include "classic/obex_parser.h"
 #include "l2cap.h"
-#include "classic/obex.h"
-#include "classic/obex_srm_client.h"
 
 #if defined __cplusplus
 extern "C" {
@@ -79,6 +77,18 @@ typedef enum {
     // abort operation
     AVRCP_COVER_ART_W4_ABORT_COMPLETE,
 } avrcp_cover_art_state_t;
+
+typedef struct {
+    uint8_t srm_value;
+    uint8_t srmp_value;
+} avrcp_cover_art_obex_srm_t;
+
+typedef enum {
+    SRM_DISABLED,
+    SRM_W4_CONFIRM,
+    SRM_ENABLED_BUT_WAITING,
+    SRM_ENABLED
+} avrcp_cover_art_srm_state_t;
 
 typedef  struct {
     btstack_linked_item_t item;
@@ -109,7 +119,8 @@ typedef  struct {
     uint8_t obex_header_buffer[4];
 
     // obex srm
-    obex_srm_client_t obex_srm;
+    avrcp_cover_art_obex_srm_t obex_srm;
+    avrcp_cover_art_srm_state_t srm_state;
 
     // request
     const char * object_type;
@@ -136,7 +147,8 @@ void avrcp_cover_art_client_init(void);
  * @param   avrcp_cover_art_cid  outgoing parameter, valid if status == ERROR_CODE_SUCCESS
  * @return status     
  */
-uint8_t avrcp_cover_art_client_connect(avrcp_cover_art_client_t *cover_art_client, btstack_packet_handler_t packet_handler,
+uint8_t
+avrcp_cover_art_client_connect(avrcp_cover_art_client_t *cover_art_client, btstack_packet_handler_t packet_handler,
                                bd_addr_t remote_addr, uint8_t *ertm_buffer, uint32_t ertm_buffer_size,
                                const l2cap_ertm_config_t *ertm_config, uint16_t *avrcp_cover_art_cid);
 

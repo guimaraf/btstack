@@ -1,28 +1,26 @@
-/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file    i2s.h
-  * @brief   This file contains all the function prototypes for
-  *          the i2s.c file
+  * File Name          : I2S.h
+  * Description        : This file provides code for the configuration
+  *                      of the I2S instances.
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2024 STMicroelectronics.
-  * All rights reserved.
+  * <h2><center>&copy; Copyright (c) 2019 STMicroelectronics.
+  * All rights reserved.</center></h2>
   *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
+  * This software component is licensed by ST under BSD 3-Clause license,
+  * the "License"; You may not use this file except in compliance with the
+  * License. You may obtain a copy of the License at:
+  *                        opensource.org/licenses/BSD-3-Clause
   *
   ******************************************************************************
   */
-/* USER CODE END Header */
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __I2S_H__
-#define __I2S_H__
-
+#ifndef __i2s_H
+#define __i2s_H
 #ifdef __cplusplus
-extern "C" {
+ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
@@ -34,14 +32,11 @@ extern "C" {
 
 extern I2S_HandleTypeDef hi2s2;
 
-extern I2S_HandleTypeDef hi2s3;
-
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
 
 void MX_I2S2_Init(void);
-void MX_I2S3_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 
@@ -50,6 +45,14 @@ void MX_I2S3_Init(void);
 #ifdef __cplusplus
 }
 #endif
+#endif /*__ i2s_H */
 
-#endif /* __I2S_H__ */
+/**
+  * @}
+  */
 
+/**
+  * @}
+  */
+
+/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

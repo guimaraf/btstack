@@ -5,13 +5,10 @@ project(test-hfp)
 find_package(PkgConfig REQUIRED)
 
 # CppuTest
-pkg_check_modules(CPPUTEST REQUIRED cpputest)
+pkg_check_modules(CPPUTEST REQUIRED CppuTest)
 include_directories(${CPPUTEST_INCLUDE_DIRS})
 link_directories(${CPPUTEST_LIBRARY_DIRS})
 link_libraries(${CPPUTEST_LIBRARIES})
-
-# enable test features
-add_compile_definitions(ENABLE_TESTING_SUPPORT)
 
 include_directories(.)
 include_directories(..)
@@ -44,8 +41,6 @@ set(SOURCES
 	test_sequences.c
 )
 list(SORT SOURCES)
-
-add_compile_options( -g -DHAVE_ASSERT)
 
 # create static lib
 add_library(btstack STATIC ${SOURCES})

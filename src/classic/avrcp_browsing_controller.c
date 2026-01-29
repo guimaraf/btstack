@@ -73,7 +73,7 @@ static int avrcp_browsing_controller_send_get_folder_items_cmd(uint16_t cid, avr
             attribute_count = AVRCP_MEDIA_ATTR_ALL;  // 0
             break;
         default:
-            attribute_count    = count_set_bits_uint32(connection->attr_bitmap & ((1 << AVRCP_MEDIA_ATTR_NUM)-1));
+            attribute_count    = count_set_bits_uint32(connection->attr_bitmap & ((1 << AVRCP_MEDIA_ATTR_RESERVED)-1));
             attributes_to_copy = attribute_count;
             break;
     }
@@ -120,7 +120,7 @@ static int avrcp_browsing_controller_send_get_item_attributes_cmd(uint16_t cid, 
             attribute_count = 0;
             break;
         default:
-            attribute_count    = count_set_bits_uint32(connection->attr_bitmap & ((1 << AVRCP_MEDIA_ATTR_NUM)-1));
+            attribute_count    = count_set_bits_uint32(connection->attr_bitmap & ((1 << AVRCP_MEDIA_ATTR_RESERVED)-1));
             attributes_to_copy = attribute_count;
             break;
     }
@@ -129,7 +129,7 @@ static int avrcp_browsing_controller_send_get_item_attributes_cmd(uint16_t cid, 
     pos += 2;
 
     command[pos++] = connection->scope;
-    (void)memcpy(command + pos, connection->item_uid, 8);
+    (void)memcpy(command + pos, connection->folder_uid, 8);
     pos += 8;
     big_endian_store_16(command, pos, connection->uid_counter);
     pos += 2;
@@ -162,10 +162,9 @@ static int avrcp_browsing_controller_send_change_path_cmd(uint16_t cid, avrcp_br
 
     big_endian_store_16(command, pos, 11);
     pos += 2;
-    big_endian_store_16(command, pos, connection->uid_counter);
     pos += 2;
     command[pos++] = connection->direction;
-    (void)memcpy(command + pos, connection->item_uid, 8);
+    (void)memcpy(command + pos, connection->folder_uid, 8);
     pos += 8;
     return l2cap_send(cid, command, pos);
 }
@@ -535,7 +534,6 @@ uint8_t avrcp_browsing_controller_get_item_attributes_for_scope(uint16_t avrcp_b
         log_error("avrcp_browsing_controller_get_item_attributes: could not find a connection.");
         return ERROR_CODE_UNKNOWN_CONNECTION_IDENTIFIER;
     }
-
     avrcp_browsing_connection_t * connection = avrcp_connection->browsing_connection;
     if (connection->state != AVCTP_CONNECTION_OPENED){
         log_error("avrcp_browsing_controller_get_item_attributes: connection in wrong state %d, expected %d.", connection->state, AVCTP_CONNECTION_OPENED);
@@ -544,7 +542,7 @@ uint8_t avrcp_browsing_controller_get_item_attributes_for_scope(uint16_t avrcp_b
 
     connection->get_item_attributes = 1;
     connection->scope = scope;
-    (void)memcpy(connection->item_uid, uid, 8);
+    (void)memcpy(connection->folder_uid, uid, 8);
     connection->uid_counter = uid_counter;
     connection->attr_bitmap = attr_bitmap;
 
@@ -633,16 +631,21 @@ uint8_t avrcp_browsing_controller_change_path(uint16_t avrcp_browsing_cid, uint8
     }
     
     avrcp_browsing_connection_t * connection = avrcp_connection->browsing_connection;
-    if (connection->state != AVCTP_CONNECTION_OPENED){
+    
+    if ((connection == NULL) || (connection->state != AVCTP_CONNECTION_OPENED)){
         log_error("avrcp_browsing_controller_change_path: connection in wrong state.");
         return ERROR_CODE_COMMAND_DISALLOWED;
     } 
 
+    if (!connection->browsed_player_id){
+        log_error("avrcp_browsing_controller_change_path: no browsed player set.");
+        return ERROR_CODE_COMMAND_DISALLOWED;
+    }
     connection->change_path = 1;
     connection->direction = direction;
-    memset(connection->item_uid, 0, 8);
+    memset(connection->folder_uid, 0, 8);
     if (folder_uid){
-        (void)memcpy(connection->item_uid, folder_uid, 8);
+        (void)memcpy(connection->folder_uid, folder_uid, 8);
     }
     
     avrcp_browsing_request_can_send_now(connection, connection->l2cap_browsing_cid);
@@ -665,13 +668,18 @@ uint8_t avrcp_browsing_controller_search(uint16_t avrcp_browsing_cid, uint16_t s
     }
     
     avrcp_browsing_connection_t * connection = avrcp_connection->browsing_connection;
-    if (connection->state != AVCTP_CONNECTION_OPENED){
+    
+    if ((connection == NULL) || (connection->state != AVCTP_CONNECTION_OPENED)){
         log_error("avrcp_browsing_controller_change_path: connection in wrong state.");
         return ERROR_CODE_COMMAND_DISALLOWED;
     } 
 
+    if (!connection->browsed_player_id){
+        log_error("avrcp_browsing_controller_change_path: no browsed player set.");
+        return ERROR_CODE_COMMAND_DISALLOWED;
+    }
     if (!search_str || (search_str_len == 0)){
-        return ERROR_CODE_PARAMETER_OUT_OF_MANDATORY_RANGE;
+        return AVRCP_BROWSING_ERROR_CODE_INVALID_COMMAND;
     }
 
     connection->search = 1;
@@ -698,6 +706,10 @@ uint8_t avrcp_browsing_controller_get_total_nr_items_for_scope(uint16_t avrcp_br
         return ERROR_CODE_COMMAND_DISALLOWED;
     } 
 
+    if (!connection->browsed_player_id){
+        log_error("avrcp_browsing_controller_change_path: no browsed player set.");
+        return ERROR_CODE_COMMAND_DISALLOWED;
+    }
     connection->get_total_nr_items = 1;
     connection->get_total_nr_items_scope = scope;
     avrcp_browsing_request_can_send_now(connection, connection->l2cap_browsing_cid);

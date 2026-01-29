@@ -44,19 +44,12 @@
 #ifndef BTSTACK_DEFINES_H
 #define BTSTACK_DEFINES_H
 #include <stdint.h>
-#include "btstack_version.h"
 
 #include "btstack_linked_list.h" 
 
 // UNUSED macro
 #ifndef UNUSED
-#define UNUSED(x) (void)(x)
-#endif
-
-
-// Get the number of entries in an array ('x' must NOT be a pointer!)
-#ifndef ARRAYSIZE
-#define ARRAYSIZE(x) (sizeof(x)/sizeof((x)[0]))
+#define UNUSED(x) (void)(sizeof(x))
 #endif
 
 // TYPES
@@ -81,22 +74,6 @@ typedef struct {
  * @brief 128 bit key used with AES128 in Security Manager
  */
 typedef uint8_t sm_key_t[16];
-
-/**
- * @brief 128 bit UUID
- */
-typedef uint8_t uuid128_t[16];
-/**
- * @brief 32-bit microsecond timestamp used for audio api
- * @note time wraps around every 71.6 minutes
- */
-typedef uint32_t btstack_time_us_t;
-
-// provide ssize_t on windows
-#ifdef _MSC_VER
-#include <basetsd.h>
-typedef SSIZE_T ssize_t;
-#endif
 
 // DEFINES
 
@@ -719,9 +696,8 @@ typedef SSIZE_T ssize_t;
  #define HCI_SUBEVENT_LE_CONNECTION_UPDATE_COMPLETE         0x03u
 
 /**
- * @format 11HD
+ * @format 1HD
  * @param subevent_code
- * @param status
  * @param connection_handle
  * @param le_features
  */
@@ -1079,7 +1055,7 @@ typedef SSIZE_T ssize_t;
 // data: system bluetooth on/off (bool)
 /**
  * @format 1
- * @param system_bluetooth_enabled
+ * param system_bluetooth_enabled
  */
 #define DAEMON_EVENT_SYSTEM_BLUETOOTH_ENABLED              0x64u
 
@@ -1143,10 +1119,9 @@ typedef SSIZE_T ssize_t;
 
 /**
  * @brief Transport USB Bluetooth Controller info
- * @format 221JV
+ * @format 22JV
  * @param vendor_id
  * @param product_id
- * @param bus
  * @param path_len
  * @param path
  */
@@ -1171,18 +1146,13 @@ typedef SSIZE_T ssize_t;
 #define HCI_EVENT_BIS_CAN_SEND_NOW                         0x6Bu
 
 /**
- * @format 11H11
- * @param cig_id
- * @param cis_id
+ * @format H
  * @param cis_con_handle
- * @param stream_index
- * @param group_complete
  */
 #define HCI_EVENT_CIS_CAN_SEND_NOW                         0x6Cu
 
 /**
- * @format H
- * @param handle
+ * @format
  */
 #define HCI_EVENT_SCO_CAN_SEND_NOW                         0x6Fu
 
@@ -1453,56 +1423,44 @@ typedef SSIZE_T ssize_t;
 #define SDP_EVENT_QUERY_SERVICE_RECORD_HANDLE                    0x95u
 
 /**
- * @format H221
+ * @format H1
  * @param handle
- * @param service_id
- * @param connection_id
- * @param att_status  see ATT errors in bluetooth.h
+ * @param att_status  see ATT errors in bluetooth.h  
  */
 #define GATT_EVENT_QUERY_COMPLETE                                0xA0u
 
 /**
- * @format H22X
+ * @format HX
  * @param handle
- * @param service_id
- * @param connection_id
  * @param service
  */
 #define GATT_EVENT_SERVICE_QUERY_RESULT                          0xA1u
 
 /**
- * @format H22Y
+ * @format HY
  * @param handle
- * @param service_id
- * @param connection_id
  * @param characteristic
  */
 #define GATT_EVENT_CHARACTERISTIC_QUERY_RESULT                   0xA2u
 
 /**
- * @format H222X
+ * @format H2X
  * @param handle
- * @param service_id
- * @param connection_id
  * @param include_handle
  * @param service
  */
 #define GATT_EVENT_INCLUDED_SERVICE_QUERY_RESULT                 0xA3u
 
 /**
- * @format H22Z
+ * @format HZ
  * @param handle
- * @param service_id
- * @param connection_id
  * @param characteristic_descriptor
  */
 #define GATT_EVENT_ALL_CHARACTERISTIC_DESCRIPTORS_QUERY_RESULT   0xA4u
 
 /**
- * @format H222LV
+ * @format H2LV
  * @param handle
- * @param service_id
- * @param connection_id
  * @param value_handle
  * @param value_length
  * @param value
@@ -1510,10 +1468,8 @@ typedef SSIZE_T ssize_t;
 #define GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT             0xA5u
 
 /**
- * @format H2222LV
+ * @format H22LV
  * @param handle
- * @param service_id
- * @param connection_id
  * @param value_handle
  * @param value_offset
  * @param value_length
@@ -1522,10 +1478,8 @@ typedef SSIZE_T ssize_t;
 #define GATT_EVENT_LONG_CHARACTERISTIC_VALUE_QUERY_RESULT        0xA6u
 
 /**
- * @format H222LV
+ * @format H2LV
  * @param handle
- * @param service_id
- * @param connection_id
  * @param value_handle
  * @param value_length
  * @param value
@@ -1533,10 +1487,8 @@ typedef SSIZE_T ssize_t;
 #define GATT_EVENT_NOTIFICATION                                  0xA7u
 
 /**
- * @format H222LV
+ * @format H2LV
  * @param handle
- * @param service_id
- * @param connection_id
  * @param value_handle
  * @param value_length
  * @param value
@@ -1544,10 +1496,8 @@ typedef SSIZE_T ssize_t;
 #define GATT_EVENT_INDICATION                                    0xA8u
 
 /**
- * @format H222LV
+ * @format H2LV
  * @param handle
- * @param service_id
- * @param connection_id
  * @param descriptor_handle
  * @param descriptor_length
  * @param descriptor
@@ -1555,10 +1505,8 @@ typedef SSIZE_T ssize_t;
 #define GATT_EVENT_CHARACTERISTIC_DESCRIPTOR_QUERY_RESULT        0xA9u
 
 /**
- * @format H2222LV
+ * @format H22LV
  * @param handle
- * @param service_id
- * @param connection_id
  * @param descriptor_handle
  * @param descriptor_offset
  * @param descriptor_length
@@ -1580,9 +1528,8 @@ typedef SSIZE_T ssize_t;
 #define GATT_EVENT_CAN_WRITE_WITHOUT_RESPONSE                    0xACu
 
 /**
- * @format 11BH
+ * @format 1BH
  * @param status
- * @param address_type
  * @param address
  * @param handle
  */
@@ -1593,14 +1540,6 @@ typedef SSIZE_T ssize_t;
  * @param handle
  */
 #define GATT_EVENT_DISCONNECTED                                  0xAEu
-
-/**
- * @format H22
- * @param handle
- * @param attribute_handle_start
- * @param attribute_handle_end
- */
-#define GATT_EVENT_SERVICE_CHANGED                               0xAFu
 
 
 /** 
@@ -1647,7 +1586,7 @@ typedef SSIZE_T ssize_t;
  #define BNEP_EVENT_SERVICE_REGISTERED                           0xC0u
 
 /**
- * @format 12222BH1
+ * @format 12222BH
  * @param status
  * @param bnep_cid
  * @param source_uuid
@@ -1655,7 +1594,6 @@ typedef SSIZE_T ssize_t;
  * @param mtu
  * @param remote_address
  * @param con_handle
- * @param setup_connection_response for outgoing connections
  */
  #define BNEP_EVENT_CHANNEL_OPENED                               0xC1u
 
@@ -1687,16 +1625,7 @@ typedef SSIZE_T ssize_t;
  */
  #define BNEP_EVENT_CAN_SEND_NOW                                 0xC4u
 
-/**
- * @format H1B1
- * @param handle
- * @param addr_type
- * @param address
- * @param auth_req
- */
-#define SM_EVENT_SECURITY_REQUEST                                0xC7u
-
-/**
+ /**
   * @format H1B1
   * @param handle
   * @param addr_type
@@ -1825,13 +1754,12 @@ typedef SSIZE_T ssize_t;
   *        ERROR_CODE_REMOTE_USER_TERMINATED_CONNECTION  -> disconnect
   *        ERROR_CODE_AUTHENTICATION_FAILURE             -> SM protocol error, see reason field with SM_REASON_* from bluetooth.h
   *
-  * @format H1B111
+  * @format H1B11
   * @param handle
   * @param addr_type
   * @param address
   * @param status
   * @param reason if status == ERROR_CODE_AUTHENTICATION_FAILURE
-  * @param ctkd_active
   */
 #define SM_EVENT_PAIRING_COMPLETE                                0xD5u
 
@@ -1861,10 +1789,9 @@ typedef SSIZE_T ssize_t;
 // GAP
 
 /**
- * @format H11
+ * @format H1
  * @param handle
  * @param security_level
- * @param status
  */
 #define GAP_EVENT_SECURITY_LEVEL                                 0xD8u
 
@@ -1982,7 +1909,6 @@ typedef SSIZE_T ssize_t;
 #define HCI_EVENT_BIP_META                                       0xF3u
 #define HCI_EVENT_MAP_META                                       0xF4u
 #define HCI_EVENT_MESH_META                                      0xF5u
-#define HCI_EVENT_LEAUDIO_META                                   0xF6u
 
 // Potential other meta groups
 // #define HCI_EVENT_BNEP_META                                0xxx
@@ -2095,18 +2021,6 @@ typedef SSIZE_T ssize_t;
  * @param sync_handle        - 0xffff if not set
  */
 #define GAP_SUBEVENT_LE_CONNECTION_COMPLETE                     0x08u
-
-/**
- * @brief Inform higher layer that bonding for remote device has been deleted
- *
- * @format 11B1H
- * @param subevent_code
- * @param addr_type
- * @param address
- * @param index used by le_device_db and att_server
- * @param handle or HCI_CON_HANDLE_INVALID
- */
-#define GAP_SUBEVENT_BONDING_DELETED                            0x09u
 
 /** HSP Subevent */
 
@@ -2476,7 +2390,32 @@ typedef SSIZE_T ssize_t;
  * @param acl_handle
  * @param status
  */
-#define HFP_SUBEVENT_ENHANCED_VOICE_RECOGNITION_ACTIVATED  0x20u
+#define HFP_SUBEVENT_ENHANCED_VOICE_RECOGNITION_HF_READY_FOR_AUDIO  0x20u
+
+
+/**
+ * @format 1H1
+ * @param subevent_code
+ * @param acl_handle
+ * @param status
+ */
+#define HFP_SUBEVENT_ENHANCED_VOICE_RECOGNITION_AG_READY_TO_ACCEPT_AUDIO_INPUT 0x21u
+
+/**
+ * @format 1H1
+ * @param subevent_code
+ * @param acl_handle
+ * @param status
+ */
+#define HFP_SUBEVENT_ENHANCED_VOICE_RECOGNITION_AG_IS_STARTING_SOUND 0x22u
+
+/**
+ * @format 1H1
+ * @param subevent_code
+ * @param acl_handle
+ * @param status
+ */
+#define HFP_SUBEVENT_ENHANCED_VOICE_RECOGNITION_AG_IS_PROCESSING_AUDIO_INPUT 0x23u
 
 /**
  * @format 1H1
@@ -2486,19 +2425,18 @@ typedef SSIZE_T ssize_t;
  */
 #define HFP_SUBEVENT_ENHANCED_VOICE_RECOGNITION_AG_MESSAGE_SENT     0x24u
 
+
 /**
- * @format 1H11211LV
+ * @format 1H211LV
  * @param subevent_code
  * @param acl_handle
- * @param status
- * @param state
  * @param text_id
  * @param text_type
  * @param text_operation
  * @param text_length
  * @param text
  */
-#define HFP_SUBEVENT_ENHANCED_VOICE_RECOGNITION_AG_STATE            0x25u
+#define HFP_SUBEVENT_ENHANCED_VOICE_RECOGNITION_AG_MESSAGE           0x25u
 
 /**
  * @format 1H1
@@ -2533,43 +2471,6 @@ typedef SSIZE_T ssize_t;
  * @param status 0 == OK
  */
 #define HFP_SUBEVENT_CUSTOM_AT_MESSAGE_SENT                          0x29u
-
-/**
- * @format 1H1
- * @param subevent_code
- * @param acl_handle
- * @param supported
- */
-#define HFP_SUBEVENT_APPLE_EXTENSION_SUPPORTED                       0x2Au
-
-/**
- * @format 1H221JV
- * @param subevent_code
- * @param acl_handle
- * @param vendor_id
- * @param product_id
- * @param features
- * @param version_len
- * @param version
- */
-#define HFP_SUBEVENT_APPLE_ACCESSORY_INFORMATION                     0x2Bu
-
-/**
- * @format 1H1
- * @param subevent_code
- * @param acl_handle
- * @param battery_level range:0..9
- */
-#define HFP_SUBEVENT_APPLE_BATTERY_LEVEL                             0x2Cu
-
-/**
- * @format 1H1
- * @param subevent_code
- * @param acl_handle
- * @param docket 0 = undocked, 1 = docked
- */
-#define HFP_SUBEVENT_APPLE_DOCKED_STATE                              0x2Du
-
 
 // ANCS Client
 
@@ -2690,7 +2591,7 @@ typedef SSIZE_T ssize_t;
 #define AVDTP_SUBEVENT_SIGNALING_MEDIA_CODEC_MPEG_AUDIO_CAPABILITY   0x08u
 
 /**
- * @format 1211121311
+ * @format 121112131
  * @param subevent_code
  * @param avdtp_cid
  * @param remote_seid
@@ -2700,7 +2601,6 @@ typedef SSIZE_T ssize_t;
  * @param channels_bitmap
  * @param bit_rate
  * @param vbr
- * @param drc
  */
 #define AVDTP_SUBEVENT_SIGNALING_MEDIA_CODEC_MPEG_AAC_CAPABILITY     0x09u
 
@@ -2859,7 +2759,7 @@ typedef SSIZE_T ssize_t;
 #define AVDTP_SUBEVENT_SIGNALING_MEDIA_CODEC_MPEG_AUDIO_CONFIGURATION   0x15u
 
 /**
- * @format 121111131311
+ * @format 12111113131
  * @param subevent_code
  * @param avdtp_cid
  * @param local_seid
@@ -2871,7 +2771,6 @@ typedef SSIZE_T ssize_t;
  * @param num_channels
  * @param bit_rate
  * @param vbr
- * @param drc
  */
 #define AVDTP_SUBEVENT_SIGNALING_MEDIA_CODEC_MPEG_AAC_CONFIGURATION     0x16u
 
@@ -2952,35 +2851,6 @@ typedef SSIZE_T ssize_t;
  */
 #define AVDTP_SUBEVENT_SIGNALING_DELAY_REPORT               0x1Du
 
-/**
- * @format 121114113
- * @param subevent_code
- * @param avdtp_cid
- * @param remote_seid
- * @param media_type
- * @param object_type
- * @param sampling_frequency_bitmap
- * @param channels_bitmap
- * @param vbr
- * @param bit_rate_index_bitmap
- */
-#define AVDTP_SUBEVENT_SIGNALING_MEDIA_CODEC_MPEG_D_USAC_CAPABILITY     0x1Eu
-
-/**
- * @format 12111113113
- * @param subevent_code
- * @param avdtp_cid
- * @param local_seid
- * @param remote_seid
- * @param reconfigure
- * @param media_type
- * @param object_type
- * @param sampling_frequency
- * @param num_channels
- * @param vbr
- * @param bit_rate
- */
-#define AVDTP_SUBEVENT_SIGNALING_MEDIA_CODEC_MPEG_D_USAC_CONFIGURATION     0x1Fu
 
 /** A2DP Subevent */
 /* Stream goes through following states:
@@ -3041,7 +2911,7 @@ typedef SSIZE_T ssize_t;
 #define A2DP_SUBEVENT_SIGNALING_MEDIA_CODEC_MPEG_AUDIO_CONFIGURATION   0x03u
 
 /**
- * @format 121111131311
+ * @format 12111113131
  * @param subevent_code
  * @param a2dp_cid
  * @param local_seid
@@ -3053,7 +2923,6 @@ typedef SSIZE_T ssize_t;
  * @param num_channels
  * @param bit_rate
  * @param vbr
- * @param drc
  */
 #define A2DP_SUBEVENT_SIGNALING_MEDIA_CODEC_MPEG_AAC_CONFIGURATION     0x04u
 
@@ -3218,7 +3087,7 @@ typedef SSIZE_T ssize_t;
 #define A2DP_SUBEVENT_SIGNALING_MEDIA_CODEC_MPEG_AUDIO_CAPABILITY   0x14u
 
 /**
- * @format 1211121311
+ * @format 121112131
  * @param subevent_code
  * @param a2dp_cid
  * @param remote_seid
@@ -3228,7 +3097,6 @@ typedef SSIZE_T ssize_t;
  * @param channels_bitmap
  * @param bit_rate
  * @param vbr
- * @param drc
  */
 #define A2DP_SUBEVENT_SIGNALING_MEDIA_CODEC_MPEG_AAC_CAPABILITY     0x15u
 
@@ -3305,11 +3173,10 @@ typedef SSIZE_T ssize_t;
 #define AVRCP_SUBEVENT_NOTIFICATION_PLAYBACK_STATUS_CHANGED                         0x01u
 
 /**
- * @format 121D
+ * @format 121
  * @param subevent_code
  * @param avrcp_cid
  * @param command_type
- * @param identifier
  */
 #define AVRCP_SUBEVENT_NOTIFICATION_TRACK_CHANGED                                   0x02u
 
@@ -3356,14 +3223,8 @@ typedef SSIZE_T ssize_t;
  */
 #define AVRCP_SUBEVENT_NOTIFICATION_EVENT_SYSTEM_STATUS_CHANGED                     0x07u
 
-/**
- * @format 12111
- * @param subevent_code
- * @param avrcp_cid
- * @param command_type
- * @param attribute_id  see avrcp_player_application_setting_attribute_id_t
- * @param value_id  see avrcp_shuffle_mode_t, avrcp_repeat_mode_t
- */
+
+// Recquires 1 byte for num_attributes, followed by num_attributes tuples [attribute_id(1), value_id(1)], see avrcp_player_application_setting_attribute_id_t
 #define AVRCP_SUBEVENT_NOTIFICATION_EVENT_PLAYER_APPLICATION_SETTING_CHANGED        0x08u
 
 /**
@@ -3382,15 +3243,7 @@ typedef SSIZE_T ssize_t;
  */
 #define AVRCP_SUBEVENT_NOTIFICATION_AVAILABLE_PLAYERS_CHANGED                       0x0Au
 
-/**
- * @format 12122
- * @param subevent_code
- * @param avrcp_cid
- * @param command_type
- * @param player_id
- * @param uid_counter
- */
-#define AVRCP_SUBEVENT_NOTIFICATION_ADDRESSED_PLAYER_CHANGED                        0x0Bu
+// AVRCP_SUBEVENT_NOTIFICATION_EVENT_ADDRESSED_PLAYER_CHANGED = 0x0bu,           -- The Addressed Player has been changed, see 6.9.2.
 
 /**
  * @format 1212
@@ -3478,14 +3331,11 @@ typedef SSIZE_T ssize_t;
 #define AVRCP_SUBEVENT_OPERATION_START                                    0x16u
 
 /**
- * @format 1211111
+ * @format 1211
  * @param subevent_code
  * @param avrcp_cid
  * @param command_type
- * @param command_opcode
- * @param pdu_id
  * @param operation_id
- * @param status
  */
 #define AVRCP_SUBEVENT_OPERATION_COMPLETE                                 0x17u
 
@@ -3505,7 +3355,7 @@ typedef SSIZE_T ssize_t;
 #define AVRCP_SUBEVENT_PLAY_STATUS_QUERY                                    0x19u
 
 /**
- * @format 1211JV
+ * @format 121111
  * @param subevent_code
  * @param avrcp_cid
  * @param operation_id
@@ -3693,12 +3543,10 @@ typedef SSIZE_T ssize_t;
 #define AVRCP_SUBEVENT_BROWSING_DONE                                          0x33u
 
 /**
- * @format 121444
+ * @format 1214
  * @param subevent_code
  * @param browsing_cid
  * @param scope
- * @param start_item
- * @param end_item
  * @param attr_bitmap
  */
 #define AVRCP_SUBEVENT_BROWSING_GET_FOLDER_ITEMS                              0x34u
@@ -3743,105 +3591,6 @@ typedef SSIZE_T ssize_t;
  * @param cover_art_cid
  */
 #define AVRCP_SUBEVENT_COVER_ART_CONNECTION_RELEASED                          0x39u
-
-/**
- * @format 1221D
- * @param subevent_code
- * @param browsing_cid
- * @param uid_counter
- * @param direction
- * @param folder_id
- */
-#define AVRCP_SUBEVENT_BROWSING_CHANGE_PATH                                   0x40u
-
-/**
- * @format 1221DJV
- * @param subevent_code
- * @param browsing_cid
- * @param uid_counter
- * @param scope
- * @param item_id
- * @param attributes_len
- * @param attributes
- */
-#define AVRCP_SUBEVENT_BROWSING_GET_ITEM_ATTRIBUTES                                   0x41u
-
-/**
- * @format 122JV
- * @param subevent_code
- * @param browsing_cid
- * @param characterset
- * @param value_length
- * @param value
- */
-
-#define AVRCP_SUBEVENT_BROWSING_SEARCH                                                 0x42u
-
-/**
- * @format 1221D
- * @param subevent_code
- * @param avrcp_cid
- * @param uid_counter
- * @param scope
- * @param item_id
- */
-#define AVRCP_SUBEVENT_PLAY_ITEM                                                       0x43u
-
-/**
- * @format 1221D
- * @param subevent_code
- * @param avrcp_cid
- * @param uid_counter
- * @param scope
- * @param item_id
- */
-#define AVRCP_SUBEVENT_ADD_TO_NOW_PLAYING                                              0x44u
-
-/**
- * @format 12JV
- * @param subevent_code
- * @param avrcp_cid
- * @param num_attributes
- * @param attributes_ids
- */
-#define AVRCP_SUBEVENT_PLAYER_APPLICATION_SETTING_ATTRIBUTES_LIST                       0x45u
-
-/**
- * @format 121JV
- * @param subevent_code
- * @param avrcp_cid
- * @param attribute_id
- * @param num_values
- * @param values_ids
- */
-#define AVRCP_SUBEVENT_PLAYER_APPLICATION_SETTING_VALUES_LIST                           0x46u
-
-/**
- * @format 121112JV
- * @param subevent_code
- * @param avrcp_cid
- * @param num_attributes
- * @param attribute_index
- * @param attribute_id
- * @param character_set_id
- * @param attribute_name_len
- * @param attribute_name
- */
-#define AVRCP_SUBEVENT_PLAYER_APPLICATION_SETTING_ATTRIBUTES_NAMES_LIST                 0x47u
-
-/**
- * @format 1211112JV
- * @param subevent_code
- * @param avrcp_cid
- * @param attribute_id
- * @param num_values
- * @param value_index
- * @param value_id
- * @param character_set_id
- * @param value_name_len
- * @param value_name
- */
-#define AVRCP_SUBEVENT_PLAYER_APPLICATION_SETTING_VALUES_NAMES_LIST                     0x48u
 
 /**
  * @format 12BH
@@ -3998,12 +3747,11 @@ typedef SSIZE_T ssize_t;
 // HID Meta Event Group
 
 /**
- * @format 12BH1
+ * @format 12BH
  * @param subevent_code
  * @param hid_cid
  * @param address
  * @param handle
- * @param status
  */
 #define HID_SUBEVENT_INCOMING_CONNECTION                                   0x01u
 
@@ -4226,7 +3974,7 @@ typedef SSIZE_T ssize_t;
 /**
  * @format 12111
  * @param subevent_code
- * @param bas_cid
+ * @param hids_cid
  * @param status
  * @param num_instances
  * @param poll_bitmap
@@ -4236,26 +3984,12 @@ typedef SSIZE_T ssize_t;
 /**
  * @format 12111
  * @param subevent_code
- * @param bas_cid
- * @param service_index
- * @param att_status  see ATT errors in bluetooth.h
+ * @param hids_cid
+ * @param sevice_index
+ * @param att_status  see ATT errors in bluetooth.h  
  * @param level
 */
 #define GATTSERVICE_SUBEVENT_BATTERY_SERVICE_LEVEL                         0x05u
-
-/**
- * @format 12
- * @param subevent_code
- * @param service_id
-*/
-#define GATTSERVICE_SUBEVENT_BATTERY_SERVICE_LEVEL_BROADCAST_START           0x06u
-
-/**
- * @format 12
- * @param subevent_code
- * @param service_id
-*/
-#define GATTSERVICE_SUBEVENT_BATTERY_SERVICE_LEVEL_BROADCAST_STOP            0x07u
 
 /**
  * @format 1H1
@@ -4263,7 +3997,7 @@ typedef SSIZE_T ssize_t;
  * @param con_handle
  * @param att_status
  */
-#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_DONE                       0x08u
+#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_DONE                       0x06u
 
 /**
  * @format 1H1T
@@ -4272,7 +4006,7 @@ typedef SSIZE_T ssize_t;
  * @param att_status
  * @param value
  */
-#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_MANUFACTURER_NAME          0x09u
+#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_MANUFACTURER_NAME          0x07u
 
 /**
  * @format 1H1T
@@ -4281,7 +4015,7 @@ typedef SSIZE_T ssize_t;
  * @param att_status
  * @param value
  */
-#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_MODEL_NUMBER               0x0Au
+#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_MODEL_NUMBER               0x08u
 
 /**
  * @format 1H1T
@@ -4290,7 +4024,7 @@ typedef SSIZE_T ssize_t;
  * @param att_status
  * @param value
  */
-#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_SERIAL_NUMBER              0x0Bu
+#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_SERIAL_NUMBER              0x09u
 
 /**
  * @format 1H1T
@@ -4299,7 +4033,7 @@ typedef SSIZE_T ssize_t;
  * @param att_status
  * @param value
  */
-#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_HARDWARE_REVISION          0x0Cu
+#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_HARDWARE_REVISION          0x0Au
 
 /**
  * @format 1H1T
@@ -4308,7 +4042,7 @@ typedef SSIZE_T ssize_t;
  * @param att_status
  * @param value
  */
-#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_FIRMWARE_REVISION          0x0Du
+#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_FIRMWARE_REVISION          0x0Bu
 
 /**
  * @format 1H1T
@@ -4317,7 +4051,7 @@ typedef SSIZE_T ssize_t;
  * @param att_status
  * @param value
  */
-#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_SOFTWARE_REVISION          0x0Eu
+#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_SOFTWARE_REVISION          0x0Cu
 
 /**
  * @format 1H1413
@@ -4328,7 +4062,7 @@ typedef SSIZE_T ssize_t;
  * @param manufacturer_id_high
  * @param organizationally_unique_id
  */
-#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_SYSTEM_ID                  0x0Fu
+#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_SYSTEM_ID                  0x0Du
 
 /**
  * @format 1H122
@@ -4338,7 +4072,7 @@ typedef SSIZE_T ssize_t;
  * @param value_a
  * @param value_b
  */
-#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_IEEE_REGULATORY_CERTIFICATION     0x10u
+#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_IEEE_REGULATORY_CERTIFICATION     0x0Eu
 
 /**
  * @format 1H11222
@@ -4350,48 +4084,29 @@ typedef SSIZE_T ssize_t;
  * @param product_id
  * @param product_version
  */
-#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_PNP_ID                    0x11u
-
-/**
- * @format 1H1TTTT
- * @param subevent_code
- * @param con_handle
- * @param att_status
- * @param label
- * @param device_id
- * @param issuer
- * @param authority
- */
-#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_UDI_FOR_MEDICAL_DEVICES   0x12u
+#define GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_PNP_ID                    0x0Fu
 
 /**
  * @format 1H1
  * @param subevent_code
  * @param con_handle
- * @param status
+ * @param att_status
  */
-#define GATTSERVICE_SUBEVENT_SCAN_PARAMETERS_SERVICE_CONNECTED            0x13u
+#define GATTSERVICE_SUBEVENT_SCAN_PARAMETERS_SERVICE_CONNECTED            0x10u
 
 /**
  * @format 1H
  * @param subevent_code
  * @param con_handle
  */
-#define GATTSERVICE_SUBEVENT_SCAN_PARAMETERS_SERVICE_DISCONNECTED         0x14u
+#define GATTSERVICE_SUBEVENT_SPP_SERVICE_CONNECTED                        0x11u
 
 /**
  * @format 1H
  * @param subevent_code
  * @param con_handle
  */
-#define GATTSERVICE_SUBEVENT_SPP_SERVICE_CONNECTED                        0x15u
-
-/**
- * @format 1H
- * @param subevent_code
- * @param con_handle
- */
-#define GATTSERVICE_SUBEVENT_SPP_SERVICE_DISCONNECTED                     0x16u
+#define GATTSERVICE_SUBEVENT_SPP_SERVICE_DISCONNECTED                     0x12u
 
 /**
  * @format 12111
@@ -4400,17 +4115,10 @@ typedef SSIZE_T ssize_t;
  * @param status
  * @param protocol_mode
  * @param num_instances
- */
-#define GATTSERVICE_SUBEVENT_HID_SERVICE_CONNECTED                        0x17u
+*/
+#define GATTSERVICE_SUBEVENT_HID_SERVICE_CONNECTED                        0x13u
 
-/**
- * @format 12
- * @param subevent_code
- * @param hids_cid
- */
-#define GATTSERVICE_SUBEVENT_HID_SERVICE_DISCONNECTED                     0x18u
-
-/**
+/** 
  * @format 1211LV
  * @param subevent_code
  * @param hids_cid
@@ -4418,8 +4126,8 @@ typedef SSIZE_T ssize_t;
  * @param report_id
  * @param report_len
  * @param report
- */
-#define GATTSERVICE_SUBEVENT_HID_REPORT                                   0x19u
+*/
+#define GATTSERVICE_SUBEVENT_HID_REPORT                                   0x14u
 
 /**
  * @format 1212111
@@ -4430,8 +4138,8 @@ typedef SSIZE_T ssize_t;
  * @param country_code              Country HID Device hardware is localized for (not localized: 0x00)
  * @param remote_wake               Indicates whether HID Device is capable of sending a wake-signal to a HID Host
  * @param normally_connectable      Indicates whether HID Device will be advertising when bonded but not connected.
- */
-#define GATTSERVICE_SUBEVENT_HID_INFORMATION                              0x1Au
+*/
+#define GATTSERVICE_SUBEVENT_HID_INFORMATION                              0x15u
 
 /**
  * @format 1211
@@ -4439,16 +4147,16 @@ typedef SSIZE_T ssize_t;
  * @param hids_cid
  * @param service_index
  * @param protocol_mode    see hid_protocol_mode_t in btstack_hid.h
- */
-#define GATTSERVICE_SUBEVENT_HID_PROTOCOL_MODE                            0x1Bu
+*/
+#define GATTSERVICE_SUBEVENT_HID_PROTOCOL_MODE                            0x16u
 
 /**
  * @format 121
  * @param subevent_code
  * @param hids_cid
- * @param configuration
- */
-#define GATTSERVICE_SUBEVENT_HID_SERVICE_REPORTS_NOTIFICATION             0x1Cu
+ * @param configuration    
+*/
+#define GATTSERVICE_SUBEVENT_HID_SERVICE_REPORTS_NOTIFICATION             0x17u
 
 /**
  * @format 1211
@@ -4456,8 +4164,8 @@ typedef SSIZE_T ssize_t;
  * @param hids_cid
  * @param service_index
  * @param report_id
- */
-#define GATTSERVICE_SUBEVENT_HID_REPORT_WRITTEN                           0x1Du
+*/
+#define GATTSERVICE_SUBEVENT_HID_REPORT_WRITTEN                           0x18u
 
 /**
  * @format 1H22
@@ -4466,210 +4174,23 @@ typedef SSIZE_T ssize_t;
  * @param max_scan_interval
  * @param min_scan_window
  */
-#define GATTSERVICE_SUBEVENT_SCAN_PARAMETERS_SERVICE_SCAN_INTERVAL_UPDATE 0x1Eu
-
-/**
- * @format 1H22
- * @param subevent_code
- * @param con_handle
- * @param attribute_handle_start
- * @param attribute_handle_end
- */
-#define GATTSERVICE_SUBEVENT_GATT_SERVICE_CHANGED                          0x1Fu
-
-/**
- * @format 1HK2
- * @param subevent_code
- * @param con_handle
- * @param database_hash
- * @param database_version valid if != 0
- */
-#define GATTSERVICE_SUBEVENT_GATT_DATABASE_HASH                            0x20u
-
-/**
- * @format 1H211
- * @param subevent_code
- * @param con_handle
- * @param cid
- * @param num_included_services
- * @param status
- */
-#define GATTSERVICE_SUBEVENT_CLIENT_CONNECTED                              0x21u
-
-/**
- * @format 1H21
- * @param subevent_code
- * @param con_handle
- * @param cid
- * @param status
- */
-#define GATTSERVICE_SUBEVENT_CLIENT_DISCONNECTED                           0x22u
-
-/**
- * @format 1H21
- * @param subevent_code
- * @param con_handle
- * @param lls_cid
- * @param status
- */
-#define GATTSERVICE_SUBEVENT_LLS_CLIENT_CONNECTED                          0x23u
-
-/**
- * @format 12
- * @param subevent_code
- * @param lls_cid
- */
-#define GATTSERVICE_SUBEVENT_LLS_CLIENT_DISCONNECTED                       0x24u
-
-/**
- * @format 1221
- * @param subevent_code
- * @param lls_cid
- * @param characteristic_uuid
- * @param att_status
- */
-#define GATTSERVICE_SUBEVENT_LLS_CLIENT_WRITE_DONE                         0x25u
-
-/**
- * @format 12
- * @param subevent_code
- * @param lls_cid
- */
-#define GATTSERVICE_SUBEVENT_LLS_CLIENT_START_ALERTING                     0x26u
-
-/**
- * @format 121
- * @param subevent_code
- * @param lls_cid
- * @param timeout
- */
-#define GATTSERVICE_SUBEVENT_LLS_CLIENT_STOP_ALERTING                      0x27u
-
-/**
- * @format 121
- * @param subevent_code
- * @param lls_cid
- * @param value
- */
-#define GATTSERVICE_SUBEVENT_LLS_CLIENT_ALERT_LEVEL                        0x28u
-
-/**
- * @format 1H21
- * @param subevent_code
- * @param con_handle
- * @param ias_cid
- * @param status
-*/
-#define GATTSERVICE_SUBEVENT_IAS_CLIENT_CONNECTED                          0x29u
-
-/**
- * @format 12
- * @param subevent_code
- * @param ias_cid
-*/
-#define GATTSERVICE_SUBEVENT_IAS_CLIENT_DISCONNECTED                       0x2Au
-
-/**
- * @format 12
- * @param subevent_code
- * @param ias_cid
- */
-#define GATTSERVICE_SUBEVENT_IAS_CLIENT_START_ALERTING                     0x2Bu
-
-/**
- * @format 121
- * @param subevent_code
- * @param ias_cid
- * @param timeout
- */
-#define GATTSERVICE_SUBEVENT_IAS_CLIENT_STOP_ALERTING                      0x2Cu
-
-/**
- * @format 1H21
- * @param subevent_code
- * @param con_handle
- * @param tpxs_cid
- * @param status
-*/
-#define GATTSERVICE_SUBEVENT_TXPS_CLIENT_CONNECTED                         0x2Du
-
-/**
- * @format 12
- * @param subevent_code
- * @param tpxs_cid
-*/
-#define GATTSERVICE_SUBEVENT_TXPS_CLIENT_DISCONNECTED                      0x2Eu
-
-/**
- * @format 121
- * @param subevent_code
- * @param tpxs_cid
- * @param value
- */
-#define GATTSERVICE_SUBEVENT_TXPS_CLIENT_TX_POWER_LEVEL                    0x2Fu
-
-/**
- * @format 11
- * @param subevent_code
- * @param alert_level
- */
-#define GATTSERVICE_SUBEVENT_LLS_SERVER_START_ALERTING                     0x30u
-
-/**
- * @format 111
- * @param subevent_code
- * @param alert_level
- * @param timeout
- */
-#define GATTSERVICE_SUBEVENT_LLS_SERVER_STOP_ALERTING                      0x31u
-
-/**
- * @format 11
- * @param subevent_code
- * @param alert_level
- */
-#define GATTSERVICE_SUBEVENT_IAS_SERVER_START_ALERTING                     0x32u
-
-/**
- * @format 111
- * @param subevent_code
- * @param alert_level
- * @param timeout
- */
-#define GATTSERVICE_SUBEVENT_IAS_SERVER_STOP_ALERTING                      0x33u
-
-
+#define GATTSERVICE_SUBEVENT_SCAN_PARAMETERS_SERVICE_SCAN_INTERVAL_UPDATE 0x19u
 
 // LE Audio
 
 /**
- * @format 1H1
+ * @format 1H
  * @param subevent_code
  * @param con_handle
- * @param status
 */
-#define LEAUDIO_SUBEVENT_BASS_SERVER_CONNECTED                              0x01u
+#define GATTSERVICE_SUBEVENT_BASS_SERVER_SCAN_STOPPED                         0x26u
 
 /**
  * @format 1H
  * @param subevent_code
  * @param con_handle
 */
-#define LEAUDIO_SUBEVENT_BASS_SERVER_DISCONNECTED                           0x02u
-
-/**
- * @format 1H
- * @param subevent_code
- * @param con_handle
-*/
-#define LEAUDIO_SUBEVENT_BASS_SERVER_SCAN_STOPPED                         0x03u
-
-/**
- * @format 1H
- * @param subevent_code
- * @param con_handle
-*/
-#define LEAUDIO_SUBEVENT_BASS_SERVER_SCAN_STARTED                          0x04u
+#define GATTSERVICE_SUBEVENT_BASS_SERVER_SCAN_STARTED                          0x27u
 
 /**
  * @format 1H1K
@@ -4678,7 +4199,7 @@ typedef SSIZE_T ssize_t;
  * @param source_id
  * @param broadcast_code
 */
-#define LEAUDIO_SUBEVENT_BASS_SERVER_BROADCAST_CODE                         0x05u
+#define GATTSERVICE_SUBEVENT_BASS_SERVER_BROADCAST_CODE                               0x28u
 
 /**
  * @format 1H11
@@ -4687,7 +4208,7 @@ typedef SSIZE_T ssize_t;
  * @param source_id
  * @param pa_sync
  */
-#define LEAUDIO_SUBEVENT_BASS_SERVER_SOURCE_ADDED                            0x06u
+#define GATTSERVICE_SUBEVENT_BASS_SERVER_SOURCE_ADDED                                 0x29u
 
 /**
  * @format 1H11
@@ -4696,7 +4217,7 @@ typedef SSIZE_T ssize_t;
  * @param source_id
  * @param pa_sync
  */
-#define LEAUDIO_SUBEVENT_BASS_SERVER_SOURCE_MODIFIED                         0x07u
+#define GATTSERVICE_SUBEVENT_BASS_SERVER_SOURCE_MODIFIED                              0x30u
 
 /**
  * @format 1H11
@@ -4705,7 +4226,7 @@ typedef SSIZE_T ssize_t;
  * @param source_id
  * @param pa_sync
  */
-#define LEAUDIO_SUBEVENT_BASS_SERVER_SOURCE_DELETED                          0x08u
+#define GATTSERVICE_SUBEVENT_BASS_SERVER_SOURCE_DELETED                               0x31u
 
 /**
  * @format 1H21
@@ -4714,14 +4235,14 @@ typedef SSIZE_T ssize_t;
  * @param bass_cid
  * @param status
 */
-#define LEAUDIO_SUBEVENT_BASS_CLIENT_CONNECTED                                0x09u
+#define GATTSERVICE_SUBEVENT_BASS_CLIENT_CONNECTED                                    0x43u
 
 /**
  * @format 12
  * @param subevent_code
  * @param bass_cid
 */
-#define LEAUDIO_SUBEVENT_BASS_CLIENT_DISCONNECTED                             0x0Au
+#define GATTSERVICE_SUBEVENT_BASS_CLIENT_DISCONNECTED                                 0x44u
 
 /**
  * @format 1211
@@ -4730,7 +4251,7 @@ typedef SSIZE_T ssize_t;
  * @param status
  * @param opcode
 */
-#define LEAUDIO_SUBEVENT_BASS_CLIENT_SCAN_OPERATION_COMPLETE                   0x0Bu
+#define GATTSERVICE_SUBEVENT_BASS_CLIENT_SCAN_OPERATION_COMPLETE                       0x45u
 
 /**
  * @format 1211B1311P1
@@ -4746,7 +4267,7 @@ typedef SSIZE_T ssize_t;
  * @param bad_code
  * @param subgroups_num
 */
-#define LEAUDIO_SUBEVENT_BASS_CLIENT_NOTIFY_RECEIVE_STATE_BASE                  0x0Cu
+#define GATTSERVICE_SUBEVENT_BASS_NOTIFY_RECEIVE_STATE_BASE                     0x46u
 
 /**
  * @format 1214122JV3JV1JV2JV2JV
@@ -4772,7 +4293,7 @@ typedef SSIZE_T ssize_t;
  * @param vendor_specific_metadata_value_length
  * @param vendor_specific_metadata_value
 */
-#define LEAUDIO_SUBEVENT_BASS_CLIENT_NOTIFY_RECEIVE_STATE_SUBGROUP                 0x0Du
+#define GATTSERVICE_SUBEVENT_BASS_CLIENT_NOTIFY_RECEIVE_STATE_SUBGROUP                 0x47u
 
 /**
  * @format 121
@@ -4780,7 +4301,7 @@ typedef SSIZE_T ssize_t;
  * @param bass_cid
  * @param source_id
 */
-#define LEAUDIO_SUBEVENT_BASS_CLIENT_NOTIFICATION_COMPLETE                         0x0Eu
+#define GATTSERVICE_SUBEVENT_BASS_CLIENT_NOTIFICATION_COMPLETE                         0x48u
 
 /**
  * @format 12111
@@ -4790,8 +4311,22 @@ typedef SSIZE_T ssize_t;
  * @param opcode
  * @param source_id
 */
-#define LEAUDIO_SUBEVENT_BASS_CLIENT_SOURCE_OPERATION_COMPLETE                     0x0Fu
+#define GATTSERVICE_SUBEVENT_BASS_CLIENT_SOURCE_OPERATION_COMPLETE                     0x49u
 
+/**
+ * @format 1H1
+ * @param subevent_code
+ * @param con_handle
+ * @param status
+*/
+#define GATTSERVICE_SUBEVENT_BASS_SERVER_CONNECTED                              0x70u
+
+/**
+ * @format 1H
+ * @param subevent_code
+ * @param con_handle
+*/
+#define GATTSERVICE_SUBEVENT_BASS_SERVER_DISCONNECTED                           0x71u
 
 // MESH Meta Event Group
 

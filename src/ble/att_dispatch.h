@@ -52,8 +52,6 @@
 extern "C" {
 #endif
 
-/* API_START */
-
 /**
  * @brief Register packet handler for ATT Client PDUs
  * @param packet_handler
@@ -121,8 +119,6 @@ void att_dispatch_server_mtu_exchanged(hci_con_handle_t con_handle, uint16_t new
 * @param mtu
 */
 void att_dispatch_client_mtu_exchanged(hci_con_handle_t con_handle, uint16_t new_mtu);
-
-/* API_END */
 
 #if defined __cplusplus
 }

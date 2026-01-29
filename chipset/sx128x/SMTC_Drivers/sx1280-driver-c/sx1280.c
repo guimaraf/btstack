@@ -16,7 +16,7 @@ Maintainer: Miguel Luis, Matthieu Verdy and Benjamin Boulet
 #include <string.h>
 #include "sx1280.h"
 #include "sx1280-hal.h"
-#include "RangingCorrection.h"
+#include "rangingcorrection.h"
 
 // logging on
 #include "SEGGER_RTT.h"
@@ -37,7 +37,7 @@ typedef struct
  * \brief Radio hardware registers initialization definition
  */
 // { Address, RegValue }
-#define RADIO_INIT_REGISTERS_VALUE  { 0 }
+#define RADIO_INIT_REGISTERS_VALUE  { NULL }
 
 /*!
  * \brief Radio hardware registers initialization

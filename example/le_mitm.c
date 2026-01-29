@@ -97,10 +97,8 @@ static uint16_t devices_found;
 static device_info_t devices[MAX_NUM_DEVICES];
 
 static uint16_t         remote_peripheral_index;
-#ifdef HAVE_BTSTACK_STDIN
 static bd_addr_t        remote_peripheral_addr;
 static bd_addr_type_t   remote_peripheral_addr_type;
-#endif
 static hci_con_handle_t remote_peripheral_handle;
 
 static hci_con_handle_t remote_central_handle;
@@ -181,7 +179,6 @@ static void mitm_start_scan(btstack_timer_source_t * ts){
     gap_start_scan();
 }
 
-#ifdef HAVE_BTSTACK_STDIN
 static void mitm_connect(uint16_t index){
     // stop scanning, and connect to the device
     gap_stop_scan();
@@ -193,7 +190,6 @@ static void mitm_connect(uint16_t index){
     printf("[-] Connecting to Peripheral %s\n", bd_addr_to_str(remote_peripheral_addr));
     gap_auto_connection_start(remote_peripheral_addr_type, remote_peripheral_addr);
 }
-#endif
 
 static void mitm_start_advertising(void){
     // set adv + scan data if available
@@ -515,7 +511,6 @@ static void att_packet_handler(uint8_t packet_type, uint16_t handle, uint8_t *pa
     }
 }
 
-#ifdef HAVE_BTSTACK_STDIN
 static void stdin_process(char cmd) {
     unsigned int index;
     switch(state){
@@ -547,7 +542,6 @@ static void stdin_process(char cmd) {
             break;
     }
 }
-#endif
 
 int btstack_main(int argc, const char * argv[]);
 int btstack_main(int argc, const char * argv[]){

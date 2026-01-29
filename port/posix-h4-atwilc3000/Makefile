@@ -10,9 +10,8 @@ CORE += \
 	hci_transport_h4.c \
 	le_device_db_tlv.c \
 	main.c \
-	wav_util.c					\
+	wav_util.c 					\
 	btstack_stdin_posix.c \
-	btstack_main_config.c \
 	btstack_signal.c \
 
 # examples

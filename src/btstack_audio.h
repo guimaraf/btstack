@@ -47,7 +47,6 @@
 #ifndef BTSTACK_AUDIO_H
 #define BTSTACK_AUDIO_H
 
-#include <btstack_defines.h>
 #include <stdint.h>
 
 #if defined __cplusplus
@@ -57,23 +56,17 @@ extern "C" {
 /* API_START */
 
 typedef struct {
-    btstack_time_us_t timestamp;
-} btstack_audio_context_t;
-
-typedef struct {
 
     /**
      * @brief Setup audio codec for specified samplerate and number of channels
      * @param Channels (1=mono, 2=stereo)
      * @param Sample rate
-     * @param Playback callback with sample buffer, number of samples, and, if available playback time of first sample
-     * @return 0 on success
+     * @param Playback callback
+     * @return 1 on success
      */
     int (*init)(uint8_t channels,
                 uint32_t samplerate, 
-                void (*playback) (int16_t *  buffer,
-                                  uint16_t num_samples,
-                                  const btstack_audio_context_t * timeinfo));
+                void (*playback) (int16_t * buffer, uint16_t num_samples));
 
     /**
      * @brief Get the current playback sample rate, may differ from the
@@ -111,14 +104,12 @@ typedef struct {
      * @brief Setup audio codec for specified samplerate and number of channels
      * @param Channels (1=mono, 2=stereo)
      * @param Sample rate
-     * @param Recording callback with sample buffer, number of samples, and, if available recording time of first sample
-     * @return 0 on success
+     * @param Recording callback
+     * @return 1 on success
      */
     int (*init)(uint8_t channels,
                 uint32_t samplerate, 
-                void (*recording)(const int16_t * buffer,
-                                  uint16_t num_samples,
-                                  const btstack_audio_context_t * timeinfo));
+                void (*recording)(const int16_t * buffer, uint16_t num_samples));
 
     /**
      * @brief Get the current recording sample rate, may differ from the
@@ -180,17 +171,11 @@ void btstack_audio_source_set_instance(const btstack_audio_source_t * audio_sour
 const btstack_audio_sink_t *   btstack_audio_portaudio_sink_get_instance(void);
 const btstack_audio_source_t * btstack_audio_portaudio_source_get_instance(void);
 
-const btstack_audio_sink_t *   btstack_audio_alsa_sink_get_instance(void);
-
 const btstack_audio_sink_t *   btstack_audio_embedded_sink_get_instance(void);
 const btstack_audio_source_t * btstack_audio_embedded_source_get_instance(void);
 
 const btstack_audio_sink_t *    btstack_audio_esp32_sink_get_instance(void);
 const btstack_audio_source_t *  btstack_audio_esp32_source_get_instance(void);
-
-// platform-specific extension
-void btstack_audio_portaudio_sink_set_device(const char * device_name);
-void btstack_audio_portaudio_source_set_device(const char * device_name);
 
 /* API_END */
 

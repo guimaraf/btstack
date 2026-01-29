@@ -195,7 +195,4 @@ const hci_dump_t * hci_dump_segger_rtt_stdout_get_instance(void){
     return &hci_dump_instance;
 }
 
-#else
-/* Avoid empty translation unit */
-typedef int dummy_translation_unit_t;
 #endif

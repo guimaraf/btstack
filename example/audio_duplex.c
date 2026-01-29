@@ -62,7 +62,7 @@ static btstack_timer_source_t start_stop_timer;
 const uint32_t samplerate = 16000;
 
 // ring buffer for audio
-#define BUFFER_SAMPLES 2048
+#define BUFFER_SAMPLES 1024
 static uint16_t              audio_buffer_storage[BUFFER_SAMPLES * NUM_INPUT_CHANNELS];
 static btstack_ring_buffer_t audio_buffer;
 
@@ -77,8 +77,7 @@ static bool playback_started;
 static int count_recording;
 static int count_playback;
 
-static void audio_recording(const int16_t * pcm_buffer, uint16_t num_samples_to_write, const btstack_audio_context_t * context){
-    UNUSED(context);
+static void audio_recording(const int16_t * pcm_buffer, uint16_t num_samples_to_write){
     count_recording += num_samples_to_write;
     int err = btstack_ring_buffer_write(&audio_buffer, (uint8_t *) pcm_buffer, num_samples_to_write * BYTES_PER_SAMPLE);
     if (err){
@@ -86,8 +85,7 @@ static void audio_recording(const int16_t * pcm_buffer, uint16_t num_samples_to_
     }
 }
 
-static void audio_playback(int16_t * pcm_buffer, uint16_t num_samples_to_write, const btstack_audio_context_t * context){
-    UNUSED(context);
+static void audio_playback(int16_t * pcm_buffer, uint16_t num_samples_to_write){
     int num_samples_in_buffer = btstack_ring_buffer_bytes_available(&audio_buffer) / BYTES_PER_SAMPLE;
     if (playback_started == false){
         if ( num_samples_in_buffer >= (BUFFER_SAMPLES / 2)){

@@ -6,15 +6,12 @@ CORE += \
 	btstack_chipset_cc256x.c \
 	btstack_chipset_csr.c \
 	btstack_chipset_em9301.c \
-	btstack_chipset_realtek.c \
 	btstack_chipset_stlc2500d.c \
 	btstack_chipset_tc3566x.c \
-	btstack_chipset_zephyr.c \
 	btstack_link_key_db_tlv.c \
 	btstack_run_loop_posix.c \
 	btstack_audio.c \
     btstack_audio_portaudio.c \
-    btstack_main_config.c \
 	btstack_tlv_posix.c \
 	btstack_uart_posix.c \
 	hci_dump_posix_fs.c \
@@ -48,10 +45,8 @@ CFLAGS  += -g -Wall -Werror \
 	-I$(BTSTACK_ROOT)/chipset/cc256x \
 	-I$(BTSTACK_ROOT)/chipset/csr \
 	-I$(BTSTACK_ROOT)/chipset/em9301 \
-	-I$(BTSTACK_ROOT)/chipset/realtek \
 	-I$(BTSTACK_ROOT)/chipset/stlc2500d \
 	-I$(BTSTACK_ROOT)/chipset/tc3566x \
-	-I$(BTSTACK_ROOT)/chipset/zephyr \
     -I${BTSTACK_ROOT}/3rd-party/rijndael \
     -I${BTSTACK_ROOT}/3rd-party/tinydir
 
@@ -64,10 +59,8 @@ VPATH += ${BTSTACK_ROOT}/chipset/bcm
 VPATH += ${BTSTACK_ROOT}/chipset/cc256x
 VPATH += ${BTSTACK_ROOT}/chipset/csr
 VPATH += ${BTSTACK_ROOT}/chipset/em9301
-VPATH += ${BTSTACK_ROOT}/chipset/realtek
 VPATH += ${BTSTACK_ROOT}/chipset/stlc2500d
 VPATH += ${BTSTACK_ROOT}/chipset/tc3566x
-VPATH += ${BTSTACK_ROOT}/chipset/zephyr
 
 # add pthread for ctrl-c signal handler
 LDFLAGS += -lpthread

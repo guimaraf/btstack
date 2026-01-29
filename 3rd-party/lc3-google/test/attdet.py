@@ -54,7 +54,7 @@ class AttackDetector:
 
     def run(self, nbytes, x):
 
-        ### Downsampling and filtering input
+        ### 3.3.6.2 Downsampling and filtering input
 
         mf = int(16 * self.ms)
 
@@ -68,7 +68,7 @@ class AttackDetector:
         self.xn2 = x_att[-2]
         self.xn1 = x_att[-1]
 
-        ### Energy calculation
+        ### 3.3.6.3 Energy calculation
 
         nb = int(self.ms / 2.5)
 
@@ -82,7 +82,7 @@ class AttackDetector:
         self.en1 = e_att[-1]
         self.an1 = a_att[-1]
 
-        ### Attack Detection
+        ### 3.3.6.4 Attack Detection
 
         p_att = -1
         flags = [ (e_att[i] > 8.5 * a_att[i]) for i in range(nb) ]
@@ -105,7 +105,7 @@ def check_enabling(rng, dt):
 
     ok = True
 
-    for sr in range(T.SRATE_8K, T.SRATE_48K + 1):
+    for sr in range(T.SRATE_16K, T.NUM_SRATE):
 
         attdet = AttackDetector(dt, sr)
 
@@ -151,19 +151,17 @@ def check_unit(rng, dt, sr):
 
 def check_appendix_c(dt):
 
-    i0 = dt - T.DT_7M5
     sr = T.SRATE_48K
 
-    ok = True
     state = initial_state()
 
-    x = np.append(np.zeros(6), C.X_PCM_ATT[i0][0])
-    f_att = lc3.attdet_run(dt, sr, C.NBYTES_ATT[i0], state, x)
-    ok = ok and f_att == C.F_ATT[i0][0]
+    x = np.append(np.zeros(6), C.X_PCM_ATT[dt][0])
+    f_att = lc3.attdet_run(dt, sr, C.NBYTES_ATT[dt], state, x)
+    ok = f_att == C.F_ATT[dt][0]
 
-    x = np.append(x[-6:], C.X_PCM_ATT[i0][1])
-    f_att = lc3.attdet_run(dt, sr, C.NBYTES_ATT[i0], state, x)
-    ok = ok and f_att == C.F_ATT[i0][1]
+    x = np.append(x[-6:], C.X_PCM_ATT[dt][1])
+    f_att = lc3.attdet_run(dt, sr, C.NBYTES_ATT[dt], state, x)
+    ok = f_att == C.F_ATT[dt][1]
 
     return ok
 
@@ -175,11 +173,11 @@ def check():
     for dt in range(T.NUM_DT):
         ok and check_enabling(rng, dt)
 
-    for dt in ( T.DT_7M5, T.DT_10M ):
-        for sr in ( T.SRATE_32K, T.SRATE_48K ):
+    for dt in range(T.NUM_DT):
+        for sr in range(T.SRATE_32K, T.NUM_SRATE):
             ok = ok and check_unit(rng, dt, sr)
 
-    for dt in ( T.DT_7M5, T.DT_10M ):
+    for dt in range(T.NUM_DT):
         ok = ok and check_appendix_c(dt)
 
     return ok

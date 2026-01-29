@@ -70,7 +70,7 @@ const uint8_t    rfcomm_channel_nr = 1;
 const char hfp_ag_service_name[] = "HFP AG Demo";
 
 static bd_addr_t device_addr;
-static const char * device_addr_string = "00:1A:7D:DA:71:03";
+static const char * device_addr_string = "00:1A:7D:DA:71:13";
 
 static uint8_t codecs[] = {
         HFP_CODEC_CVSD,
@@ -112,11 +112,9 @@ static hfp_generic_status_indicator_t hf_indicators[] = {
     {2, 1},
 };
 
-#ifdef HAVE_BTSTACK_STDIN
 static hfp_voice_recognition_message_t msg = {
-    0xABCD, HFP_TEXT_TYPE_MESSAGE_FROM_AG, HFP_TEXT_OPERATION_REPLACE, "The temperature in Munich is 30 degrees.", 41
+    0xABCD, HFP_TEXT_TYPE_MESSAGE_FROM_AG, HFP_TEXT_OPERATION_REPLACE, "The temperature in Munich is 30 degrees."
 };
-#endif
 
 #define INQUIRY_INTERVAL 5
 
@@ -466,7 +464,6 @@ static void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t * even
     UNUSED(channel);
     bd_addr_t addr;
     uint8_t status;
-
     switch (packet_type){
         case HCI_EVENT_PACKET:
             switch(hci_event_packet_get_type(event)){
@@ -499,7 +496,7 @@ static void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t * even
                     printf("Inquiry scan complete.\n");
                     break;
                 case HCI_EVENT_SCO_CAN_SEND_NOW:
-                    sco_demo_send(hci_event_sco_can_send_now_get_handle(event));
+                    sco_demo_send(sco_handle); 
                     break; 
                 default:
                     break;
@@ -550,7 +547,7 @@ static void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t * even
                                 break;
                         }
                         sco_demo_set_codec(negotiated_codec);
-                        hci_request_sco_can_send_now_event_for_con_handle(sco_handle);
+                        hci_request_sco_can_send_now_event();
                     }
                     break;
           
@@ -613,26 +610,54 @@ static void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t * even
                
                 case HFP_SUBEVENT_VOICE_RECOGNITION_ACTIVATED:
                     status = hfp_subevent_voice_recognition_activated_get_status(event);
-                    report_status(status, "ACTIVATE Voice Recognition");
+                    if (status != ERROR_CODE_SUCCESS){
+                        printf("Voice Recognition Activate command failed\n");
+                        break;
+                    }
 
-                    if (hfp_subevent_voice_recognition_activated_get_enhanced(event) > 0){
-                       printf("\nEnhanced voice recognition supported\n\n");
+                    switch (hfp_subevent_voice_recognition_activated_get_enhanced(event)){
+                        case 0:
+                            printf("\nVoice recognition ACTVATED\n\n");
+                            break;
+                        default:
+                            printf("\nEnhanced voice recognition ACTVATED\n\n");
+                            break;
                     }
                     break;
                 
                 case HFP_SUBEVENT_VOICE_RECOGNITION_DEACTIVATED:
                     status = hfp_subevent_voice_recognition_deactivated_get_status(event);
-                    report_status(status, "DEACTIVATE Voice Recognition");
+                    if (status != ERROR_CODE_SUCCESS){
+                        printf("Voice Recognition Deactivate command failed\n");
+                        break;
+                    }
+                    printf("\nVoice Recognition DEACTIVATED\n\n");
                     break;
 
-                case HFP_SUBEVENT_ENHANCED_VOICE_RECOGNITION_ACTIVATED:
-                    status = hfp_subevent_enhanced_voice_recognition_activated_get_status(event);
-                    report_status(status, "ACTIVATE Enhanced Voice recognition");
+                case HFP_SUBEVENT_ENHANCED_VOICE_RECOGNITION_HF_READY_FOR_AUDIO:
+                    status = hfp_subevent_enhanced_voice_recognition_hf_ready_for_audio_get_status(event);
+                    report_status(status, "Enhanced Voice recognition: READY FOR AUDIO");
+                    break;
+
+                case HFP_SUBEVENT_ENHANCED_VOICE_RECOGNITION_AG_READY_TO_ACCEPT_AUDIO_INPUT:
+                    status = hfp_subevent_enhanced_voice_recognition_ag_ready_to_accept_audio_input_get_status(event);
+                    report_status(status, "Enhanced Voice recognition: AG READY TO ACCEPT AUDIO INPUT");                   
+                    break;
+
+                case HFP_SUBEVENT_ENHANCED_VOICE_RECOGNITION_AG_IS_STARTING_SOUND:
+                    status = hfp_subevent_enhanced_voice_recognition_ag_is_starting_sound_get_status(event);
+                    report_status(status, "Enhanced Voice recognition: AG IS STARTING SOUND");          
+                    break;
+
+                case HFP_SUBEVENT_ENHANCED_VOICE_RECOGNITION_AG_IS_PROCESSING_AUDIO_INPUT:
+                    status = hfp_subevent_enhanced_voice_recognition_ag_is_processing_audio_input_get_status(event);
+                    report_status(status, "Enhanced Voice recognition: AG IS PROCESSING AUDIO INPUT");           
                     break;
 
                 case HFP_SUBEVENT_ENHANCED_VOICE_RECOGNITION_AG_MESSAGE_SENT:
                     status = hfp_subevent_enhanced_voice_recognition_ag_message_sent_get_status(event);
-                    report_status(status, "Enhanced Voice recognition: AG STATUS SENT");
+                    report_status(status, "Enhanced Voice recognition: AG MESSAGE SENT");
+                    printf("Enhanced Voice recognition: \'%s\'\n\n", msg.text);   
                     break;
 
                 case HFP_SUBEVENT_ECHO_CANCELING_AND_NOISE_REDUCTION_DEACTIVATE:
@@ -653,13 +678,6 @@ static void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t * even
                             break;
                     }
                     break;
-                case HFP_SUBEVENT_APPLE_ACCESSORY_INFORMATION:
-                    printf("Apple Accessory support: Vendor ID %04x, Product ID %04x, Version: %s, Features %u\n",
-                           hfp_subevent_apple_accessory_information_get_vendor_id(event),
-                           hfp_subevent_apple_accessory_information_get_product_id(event),
-                           (const char *) hfp_subevent_apple_accessory_information_get_version(event),
-                           hfp_subevent_apple_accessory_information_get_features(event));
-                    break;
                 default:
                     break;
             }
@@ -674,7 +692,7 @@ static void packet_handler(uint8_t packet_type, uint16_t channel, uint8_t * even
 }
 
 static hfp_phone_number_t subscriber_number = {
-    .type = 129, .number = "225577", .service = HFP_PHONE_SERVICE_VOICE
+    129, "225577"
 };
 
 /* @section Main Application Setup
@@ -732,8 +750,7 @@ int btstack_main(int argc, const char * argv[]){
     hfp_ag_init_ag_indicators(ag_indicators_nr, ag_indicators);
     hfp_ag_init_hf_indicators(hf_indicators_nr, hf_indicators); 
     hfp_ag_init_call_hold_services(call_hold_services_nr, call_hold_services);
-    hfp_ag_init_apple_identification("BTstack", 0);
-    hfp_ag_set_subscriber_number_information(&subscriber_number, 1);
+    hfp_ag_set_subcriber_number_information(&subscriber_number, 1);
 
     // SDP Server
     sdp_init();

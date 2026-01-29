@@ -51,22 +51,6 @@
 extern "C" {
 #endif
 
-typedef enum {
-    HFP_HF_VRA_EVENT_NONE,
-    HFP_HF_VRA_EVENT_CAN_SEND_NOW,
-    HFP_HF_VRA_EVENT_RECEIVED_OK,
-    HFP_HF_VRA_EVENT_RECEIVED_ERROR,
-    HFP_HF_VRA_EVENT_RECEIVED_TIMEOUT,
-    HFP_HF_VRA_EVENT_SCO_CONNECTED,
-    HFP_HF_VRA_EVENT_SCO_DISCONNECTED,
-    HFP_HF_VRA_EVENT_AG_REPORT_ACTIVATED,
-    HFP_HF_VRA_EVENT_AG_REPORT_DEACTIVATED,
-    HFP_HF_VRA_EVENT_AG_REPORT_STATE,
-    HFP_HF_VRA_EVENT_HF_REQUESTED_ACTIVATE,
-    HFP_HF_VRA_EVENT_HF_REQUESTED_ACTIVATE_ENHANCED,
-    HFP_HF_VRA_EVENT_HF_REQUESTED_DEACTIVATE,
-} hfp_hf_vra_event_type_t;
-
 /* API_START */
 
 /**
@@ -552,11 +536,9 @@ uint8_t hfp_hf_query_subscriber_number(hci_con_handle_t acl_handle);
  * @param acl_handle
  * @param assigned_number
  * @param value
- * @return status ERROR_CODE_SUCCESS if successful, otherwise:
- *              - ERROR_CODE_UNKNOWN_CONNECTION_IDENTIFIER if connection does not exist, or
- *              - ERROR_CODE_COMMAND_DISALLOWED if indicator is either not found or not enabled
+ * @return status ERROR_CODE_SUCCESS if successful, otherwise ERROR_CODE_UNKNOWN_CONNECTION_IDENTIFIER if connection does not exist
  */
-uint8_t hfp_hf_set_hf_indicator(int assigned_number, int value);
+uint8_t hfp_hf_set_hf_indicator(hci_con_handle_t acl_handle, int assigned_number, int value);
 
 /**
  * @brief Tests if in-band ringtone is active on AG (requires SLC)
@@ -565,29 +547,6 @@ uint8_t hfp_hf_set_hf_indicator(int assigned_number, int value);
  * @return 0 if unknown acl_handle or in-band ring-tone disabled, otherwise 1
  */
 int hfp_hf_in_band_ringtone_active(hci_con_handle_t acl_handle);
-
-/**
- * @brief Provide Apple Accessory information after SLC
- * @param vendor_id
- * @param product_id
- * @param version
- * @param features bitmask: bit 0 = reserved, bit 1 = battery reporting, bit 2 = docked or powered, bit 3 = Siri
- */
-void hfp_hf_apple_set_identification(uint16_t vendor_id, uint16_t product_id, const char * version, uint8_t features);
-
-/**
- * @brief Set Apple Accessory Battery Level
- * @param battery_level range: 0..9
- * @return status ERROR_CODE_SUCCESS if successful, otherwise ERROR_CODE_INVALID_HCI_COMMAND_PARAMETERS battery level out of range
- */
-uint8_t hfp_hf_apple_set_battery_level(uint8_t battery_level);
-
-/**
- * @brief Set Apple Accessory Docked State
- * @param docked 0 = undocked, 1 = docked
- * @return status ERROR_CODE_SUCCESS if successful, otherwise ERROR_CODE_INVALID_HCI_COMMAND_PARAMETERS docked state invalid
- */
-uint8_t hfp_hf_apple_set_docked_state(uint8_t docked);
 
 /**
  * @brief Send AT command (most likely a vendor-specific command not part of standard HFP).
@@ -623,10 +582,6 @@ void hfp_hf_deinit(void);
  * @param wide_band_speech supported
  */
 void hfp_hf_create_sdp_record(uint8_t * service, uint32_t service_record_handle, int rfcomm_channel_nr, const char * name, uint16_t supported_features, int wide_band_speech);
-
-#ifdef ENABLE_TESTING_SUPPORT
-bool test_hfp_hf_vra_state_machine(hfp_connection_t * hfp_connection, hfp_hf_vra_event_type_t event);
-#endif
 
 /* API_END */
 

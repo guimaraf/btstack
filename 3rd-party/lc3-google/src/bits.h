@@ -17,6 +17,8 @@
  ******************************************************************************/
 
 /**
+ * LC3 - Bitstream management
+ *
  * The bitstream is written by the 2 ends of the buffer :
  *
  * - Arthmetic coder put bits while increasing memory addresses
@@ -53,6 +55,10 @@
  *
  * - The procedure `lc3_check_bits()` returns indication that read has been
  *   made crossing the other bit plane.
+ *
+ *
+ * Reference : Low Complexity Communication Codec (LC3)
+ *             Bluetooth Specification v1.0
  *
  */
 

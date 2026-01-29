@@ -4,7 +4,6 @@
 
 set(EXAMPLES_GENERAL
 	audio_duplex
-	audio_player
 	led_counter
 	mod_player
 	sine_player

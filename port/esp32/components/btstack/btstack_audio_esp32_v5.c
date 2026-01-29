@@ -88,7 +88,7 @@ i2s_chan_handle_t rx_handle = NULL;
 #define BTSTACK_AUDIO_I2S_WS  GPIO_NUM_45
 #define BTSTACK_AUDIO_I2S_OUT GPIO_NUM_8
 #define BTSTACK_AUDIO_I2S_IN  GPIO_NUM_10
-#elif CONFIG_ESP_LYRAT_V4_3_BOARD
+#else
 // ESP32-LyraT V4
 #define BTSTACK_AUDIO_I2S_MCLK GPIO_NUM_0
 #define BTSTACK_AUDIO_I2S_BCK  GPIO_NUM_5
@@ -96,15 +96,6 @@ i2s_chan_handle_t rx_handle = NULL;
 #define BTSTACK_AUDIO_I2S_OUT  GPIO_NUM_26
 #define BTSTACK_AUDIO_I2S_IN   GPIO_NUM_35
 #define HEADPHONE_DETECT       GPIO_NUM_19
-#elif CONFIG_IDF_TARGET_ESP32
-// Generic ESP32
-#define BTSTACK_AUDIO_I2S_MCLK GPIO_NUM_0
-#define BTSTACK_AUDIO_I2S_BCK  GPIO_NUM_5
-#define BTSTACK_AUDIO_I2S_WS   GPIO_NUM_25
-#define BTSTACK_AUDIO_I2S_OUT  GPIO_NUM_26
-#define BTSTACK_AUDIO_I2S_IN   GPIO_NUM_35
-#else
-#error "No I2S configuration, if you don't use BTstack I2S audio please disable BTSTACK_AUDIO in Components->BTstack Configuration"
 #endif
 
 // set MCLK unused
@@ -140,8 +131,8 @@ static uint32_t btstack_audio_esp32_source_samplerate;
 static btstack_audio_esp32_state_t btstack_audio_esp32_sink_state;
 static btstack_audio_esp32_state_t btstack_audio_esp32_source_state;
 // client
-static void (*btstack_audio_esp32_sink_playback_callback)(int16_t * buffer, uint16_t num_samples, const btstack_audio_context_t * context);
-static void (*btstack_audio_esp32_source_recording_callback)(const int16_t * buffer, uint16_t num_samples, const btstack_audio_context_t * contex);
+static void (*btstack_audio_esp32_sink_playback_callback)(int16_t * buffer, uint16_t num_samples);
+static void (*btstack_audio_esp32_source_recording_callback)(const int16_t * buffer, uint16_t num_samples);
 
 #ifdef CONFIG_ESP_LYRAT_V4_3_BOARD
 
@@ -238,7 +229,7 @@ static void i2s_data_process(btstack_data_source_t *ds, btstack_data_source_call
         case DATA_SOURCE_CALLBACK_POLL: {
             uint16_t num_samples = write_block_size/BYTES_PER_SAMPLE_STEREO;
             if( num_samples > 0 ) {
-                (*btstack_audio_esp32_sink_playback_callback)((int16_t *) btstack_audio_esp32_buffer, num_samples, NULL);
+                (*btstack_audio_esp32_sink_playback_callback)((int16_t *) btstack_audio_esp32_buffer, num_samples);
                 // duplicate samples for mono
                 if (btstack_audio_esp32_sink_num_channels == 1){
                     int16_t *buffer16 = (int16_t *) btstack_audio_esp32_buffer;
@@ -271,7 +262,7 @@ static void i2s_data_process(btstack_data_source_t *ds, btstack_data_source_call
                         buffer16[i] = buffer16[2*i];
                     }
                 }
-                (*btstack_audio_esp32_source_recording_callback)((int16_t *) btstack_audio_esp32_buffer, num_samples, NULL);
+                (*btstack_audio_esp32_source_recording_callback)((int16_t *) btstack_audio_esp32_buffer, num_samples);
                 atomic_fetch_sub_explicit(&isr_bytes_read, read_block_size, memory_order_relaxed);
             }
             break;
@@ -388,7 +379,7 @@ static void btstack_audio_esp32_deinit(void){
 static int btstack_audio_esp32_sink_init(
     uint8_t channels,
     uint32_t samplerate,
-    void (*playback)(int16_t * buffer, uint16_t num_samples, const btstack_audio_context_t * context)){
+    void (*playback)(int16_t * buffer, uint16_t num_samples)){
 
     btstack_assert(playback != NULL);
     btstack_assert((1 <= channels) && (channels <= 2));
@@ -478,7 +469,7 @@ const btstack_audio_sink_t * btstack_audio_esp32_sink_get_instance(void){
 static int btstack_audio_esp32_source_init(
     uint8_t channels,
     uint32_t samplerate, 
-    void (*recording)(const int16_t * buffer, uint16_t num_samples, const btstack_audio_context_t * context)
+    void (*recording)(const int16_t * buffer, uint16_t num_samples)
 ){
     btstack_assert(recording != NULL);
 

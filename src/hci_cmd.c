@@ -198,12 +198,7 @@ uint16_t hci_cmd_create_from_template(uint8_t *hci_cmd_buffer, const hci_cmd_t *
             case 'V':
                 btstack_assert(var_len != INVALID_VAR_LEN);
                 ptr = va_arg(argptr, uint8_t *); // LCOV_EXCL_BR_LINE
-                // avoid calling  memcpy with NULL and size = 0 <- undefined behaviour
-                if (ptr == NULL){
-                    btstack_assert(var_len == 0);
-                } else {
-                    (void)memcpy(&hci_cmd_buffer[pos], ptr, var_len);
-                }
+                (void)memcpy(&hci_cmd_buffer[pos], ptr, var_len);
                 pos += var_len;
                 var_len = INVALID_VAR_LEN;
                 break;
@@ -512,14 +507,6 @@ const hci_cmd_t hci_setup_synchronous_connection = {
  */
 const hci_cmd_t hci_accept_synchronous_connection = {
     HCI_OPCODE_HCI_ACCEPT_SYNCHRONOUS_CONNECTION, "B442212"
-};
-
-/**
- * @param bd_addr
- * @param reason
- */
-const hci_cmd_t hci_reject_synchronous_connection = {
-    HCI_OPCODE_HCI_REJECT_SYNCHRONOUS_CONNECTION, "B1"
 };
 
 /**
@@ -1552,9 +1539,10 @@ const hci_cmd_t hci_le_transmitter_test = {
 };
 
 /**
+ * @param end_test_cmd
  */
 const hci_cmd_t hci_le_test_end = {
-    HCI_OPCODE_HCI_LE_TEST_END, ""
+    HCI_OPCODE_HCI_LE_TEST_END, "1"
     // return: status, number of packets (8)
 };
 
@@ -2461,37 +2449,6 @@ const hci_cmd_t hci_le_set_transmit_power_reporting_enable = {
 
 const hci_cmd_t hci_le_transmitter_test_v4 = {
     HCI_OPCODE_HCI_LE_TRANSMITTER_TEST_V4, "111111a[1]1"
-};
-
-/**
- * @param advertising_handle
- * @param change_reason
- */
-const hci_cmd_t hci_le_set_data_related_address_change = {
-    HCI_OPCODE_HCI_LE_SET_DATA_RELATED_ADDRESS_CHANGES, "11"
-};
-
-/**
- * @param subrate_min
- * @param subrate_max
- * @param max_latency
- * @param continuation_number
- * @param supervision_timeout
- */
-const hci_cmd_t hci_le_set_default_subrate = {
-        HCI_OPCODE_HCI_LE_SET_DEFAULT_SUBRATE, "22222"
-};
-
-/**
- * @param connection_handle
- * @param subrate_min
- * @param subrate_max
- * @param max_latency
- * @param continuation_number
- * @param supervision_timeout
- */
-const hci_cmd_t hci_le_subrate_request = {
-        HCI_OPCODE_HCI_LE_SUBRATE_REQUEST, "H22222"
 };
 
 #endif

@@ -48,10 +48,6 @@
 #include "btstack_bool.h"
 #include "btstack_util.h"
 
-#ifdef ENABLE_PRINTF_TO_LOG
-#include <stdio.h>
-#endif
-
 static const hci_dump_t * hci_dump_implementation;
 static int  max_nr_packets;
 static int  nr_packets;
@@ -62,8 +58,8 @@ static bool log_level_enabled[3] = { 1, 1, 1};
 
 static bool hci_dump_log_level_active(int log_level){
     if (hci_dump_implementation == NULL) return false;
-    if (log_level >= HCI_DUMP_LOG_LEVEL_PRINT) return true;
     if (log_level < HCI_DUMP_LOG_LEVEL_DEBUG) return false;
+    if (log_level > HCI_DUMP_LOG_LEVEL_ERROR) return false;
     return log_level_enabled[log_level];
 }
 
@@ -101,24 +97,12 @@ void hci_dump_packet(uint8_t packet_type, uint8_t in, uint8_t *packet, uint16_t 
 }
 
 void hci_dump_log(int log_level, const char * format, ...){
-    va_list args_log;
-    va_start(args_log, format);
+    if (!hci_dump_log_level_active(log_level)) return;
 
-#ifdef ENABLE_PRINTF_TO_LOG
-    if (log_level == HCI_DUMP_LOG_LEVEL_PRINT) {
-        // copy args list and use for vprintf
-        va_list args_printf;
-        va_copy(args_printf, args_log);
-        vprintf(format, args_printf);
-        va_end(args_printf);
-    }
-#endif
-
-    if (hci_dump_log_level_active(log_level)) {
-        (*hci_dump_implementation->log_message)(log_level, format, args_log);
-
-    }
-    va_end(args_log);
+    va_list argptr;
+    va_start(argptr, format);
+    (*hci_dump_implementation->log_message)(log_level, format, argptr);
+    va_end(argptr);
 }
 
 #ifdef __AVR__
@@ -134,7 +118,7 @@ void hci_dump_log_P(int log_level, PGM_P format, ...){
 
 void hci_dump_btstack_event(const uint8_t *packet, uint16_t len){
 #ifdef ENABLE_LOG_BTSTACK_EVENTS
-    hci_dump_packet(HCI_EVENT_PACKET, 1, packet, len);
+    hci_dump_packet(HCI_EVENT_PACKET, 1, packet, size);
 #else
     UNUSED(packet);
     UNUSED(len);
@@ -161,9 +145,6 @@ void hci_dump_setup_header_packetlogger(uint8_t * buffer, uint32_t tv_sec, uint3
             break;
         case HCI_SCO_DATA_PACKET:
             packet_logger_type = in ? 0x09 : 0x08;
-            break;
-        case HCI_ISO_DATA_PACKET:
-            packet_logger_type = in ? 0x0d : 0x0c;
             break;
         case HCI_EVENT_PACKET:
             packet_logger_type = 0x01;

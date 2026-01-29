@@ -127,17 +127,13 @@ typedef struct att_connection {
 #define ATT_READ_RESPONSE_PENDING                 0xffffu
 
 // internally used to signal write response pending
-// To ask ATT Server to defer the write response, you can return ATT_ERROR_WRITE_RESPONSE_PENDING in your att_write_callback
 #define ATT_INTERNAL_WRITE_RESPONSE_PENDING       0xfffeu
 
 /**
  * @brief ATT Client Read Callback for Dynamic Data
  * - if buffer == NULL, don't copy data, just return size of value
  * - if buffer != NULL, copy data and return number bytes copied
- *
  * If ENABLE_ATT_DELAYED_READ_RESPONSE is defined, you may return ATT_READ_RESPONSE_PENDING if data isn't available yet
- * and call att_server_response_ready to re-trigger the callback.
- *
  * @param con_handle of hci le connection
  * @param attribute_handle to be read
  * @param offset defines start of attribute value
@@ -155,9 +151,6 @@ typedef uint16_t (*att_read_callback_t)(hci_con_handle_t con_handle, uint16_t at
  * Otherwise, all callbacks will be called with ATT_TRANSACTION_MODE_CANCEL.
  *
  * If the additional validation step is not needed, just return 0 for all callbacks with transaction mode ATT_TRANSACTION_MODE_VALIDATE.
- *
- * If ENABLE_ATT_DELAYED_READ_RESPONSE is defined, you may return ATT_ERROR_WRITE_RESPONSE_PENDING if data isn't available yet
- * and call att_server_response_ready to re-trigger the callback.
  *
  * @param con_handle of hci le connection
  * @param attribute_handle to be written
@@ -333,7 +326,7 @@ const uint8_t * gatt_server_get_const_value_for_handle(uint16_t attribute_handle
 // experimental GATT Server API
 
 /**
- * @brief Get handle range for primary or secondary service.
+ * @brief Get handle range for primary service.
  * @param uuid16
  * @param start_handle
  * @param end_handle
@@ -419,14 +412,6 @@ uint16_t gatt_server_get_value_handle_for_characteristic_with_uuid128(uint16_t s
  * @return 0 if not found
  */
 uint16_t gatt_server_get_client_configuration_handle_for_characteristic_with_uuid128(uint16_t start_handle, uint16_t end_handle, const uint8_t * uuid128);
-
-/**
- * @brief Get Database Hash provided via GATT Database Hash characteristic
- * @note Used by att_server to discard stored CCCD values for bonded devices if hash has changed
- * @param hash
- * @return true if hash is available
- */
-bool gatt_server_get_database_hash(uint8_t * hash);
 
 /* API_END */
 

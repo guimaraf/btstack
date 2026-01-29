@@ -37,8 +37,6 @@
 
 #define BTSTACK_FILE__ "hci_dump_windows_stdout.c"
 
-
-#include <Windows.h>
 /*
  *  Dump HCI trace on stdout
  */
@@ -48,7 +46,7 @@
 #include "hci.h"
 #include "hci_cmd.h"
 #include <stdio.h>
-
+#include <Windows.h>
 
 #include "hci_dump_windows_stdout.h"
 

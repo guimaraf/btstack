@@ -8,6 +8,7 @@
 *.pklg
 *.fdb_latexmk
 *.hex
+*.a
 *.dylib
 *.bts
 *.elf
@@ -25,9 +26,3 @@ cmake-build-*
 build
 build-asan
 build-coverage
-.idea
-.vs
-.vscode
-ninja
-__pycache__
-.DS_Store

@@ -9,7 +9,6 @@ SUBDIRS =  \
 	base64 \
 	ble_client \
 	btstack_link_key_db \
-	btstack_util \
 	btstack_memory \
 	classic-oob-pairing \
 	crypto \
@@ -37,7 +36,6 @@ SUBDIRS =  \
 
 # not testing anything in source tree
 #	maths \
-#	pts \
 # no unit tests
 #	embedded \
 #	gatt_server \
@@ -51,7 +49,6 @@ SUBDIRS_BLE = \
 	att_db \
 	ble_client \
 	btstack_memory \
-	btstack_util \
 	crypto \
 	embedded \
 	gap \
@@ -91,8 +88,6 @@ clean:
 	done
 	rm -f *.info
 	rm -rf coverage coverage-unit-ble
-	find . -name "*.gcda" -delete
-	find . -name "*.gcno" -delete
 
 subdirs-coverage:
 	echo Run all tests for coverage
@@ -110,25 +105,29 @@ subdirs-coverage-ble:
 
 
 coverage-unit.info: subdirs-coverage
+	# delete trace data
+	find . -name "*.gcda" -type f -delete
+	# run tests
+	$(MAKE) subdirs-coverage
 	# collect traces
-	lcov --capture --ignore-errors inconsistent --ignore-errors unused --rc branch_coverage=1 --directory . --exclude "/Applications/*" --exclude "/Library/*" --exclude "/usr/*" --exclude "*/test/*" --output-file coverage-unit.info
+	lcov --capture --ignore-errors inconsistent --ignore-errors unused --rc lcov_branch_coverage=1 --directory . --exclude "/Applications/*" --exclude "/Library/*" --exclude "/usr/*" --exclude "*/test/*" --output-file coverage-unit.info
 
 coverage-unit-ble.info: subdirs-coverage-ble
+	# delete trace data
+	find . -name "*.gcda" -type f -delete
 	# run tests
 	$(MAKE) subdirs-coverage-ble
-	# collect trace for BLE tests
-	for dir in $(SUBDIRS_BLE); do \
-		lcov --capture --ignore-errors inconsistent --ignore-errors unused --rc branch_coverage=1 --directory "$$dir" --exclude "/Applications/*" --exclude "/Library/*" --exclude "/usr/*" --exclude "*/test/*" --output-file "coverage-unit-ble-$$dir.info"; \
-	done
-	lcov -a "coverage-unit-ble*.info" --ignore-errors inconsistent --rc branch_coverage=1  -o coverage-unit-ble.info
+	# collect traces
+	lcov --capture --ignore-errors inconsistent --ignore-errors unused --rc lcov_branch_coverage=1 --directory . --exclude "/Applications/*" --exclude "/Library/*" --exclude "/usr/*" --exclude "*/test/*" --output-file coverage-unit-ble.info
+
 
 coverage-all: coverage-unit.info
 	# generate html output
-	genhtml coverage-unit.info --ignore-errors inconsistent --branch-coverage --demangle-cpp --config-file lcovrc --output-directory coverage
+	genhtml coverage-unit.info --branch-coverage --demangle-cpp --config-file lcovrc --output-directory coverage
 
 coverage-unit-ble: coverage-unit-ble.info
 	# generate html output
-	genhtml coverage-unit-ble.info --ignore-errors inconsistent --branch-coverage --demangle-cpp --config-file lcovrc --output-directory coverage-unit-ble
+	genhtml coverage-unit-ble.info --branch-coverage --demangle-cpp --config-file lcovrc --output-directory coverage-unit-ble
 
 
 coverage: coverage-all coverage-unit-ble

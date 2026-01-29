@@ -113,7 +113,6 @@ typedef enum {
     HCI_OPCODE_HCI_READ_CLOCK_OFFSET = HCI_OPCODE (OGF_LINK_CONTROL, 0x1F),
     HCI_OPCODE_HCI_SETUP_SYNCHRONOUS_CONNECTION = HCI_OPCODE (OGF_LINK_CONTROL, 0x0028),
     HCI_OPCODE_HCI_ACCEPT_SYNCHRONOUS_CONNECTION = HCI_OPCODE (OGF_LINK_CONTROL, 0x0029),
-    HCI_OPCODE_HCI_REJECT_SYNCHRONOUS_CONNECTION = HCI_OPCODE (OGF_LINK_CONTROL, 0x002A),
     HCI_OPCODE_HCI_IO_CAPABILITY_REQUEST_REPLY = HCI_OPCODE (OGF_LINK_CONTROL, 0x2b),
     HCI_OPCODE_HCI_USER_CONFIRMATION_REQUEST_REPLY = HCI_OPCODE (OGF_LINK_CONTROL, 0x2c),
     HCI_OPCODE_HCI_USER_CONFIRMATION_REQUEST_NEGATIVE_REPLY = HCI_OPCODE (OGF_LINK_CONTROL, 0x2d),
@@ -340,9 +339,6 @@ typedef enum {
     HCI_OPCODE_HCI_LE_SET_PATH_LOSS_REPORTING_ENABLE = HCI_OPCODE (OGF_LE_CONTROLLER, 0x79),
     HCI_OPCODE_HCI_LE_SET_TRANSMIT_POWER_REPORTING_ENABLE = HCI_OPCODE (OGF_LE_CONTROLLER, 0x7a),
     HCI_OPCODE_HCI_LE_TRANSMITTER_TEST_V4 = HCI_OPCODE (OGF_LE_CONTROLLER, 0x7B),
-    HCI_OPCODE_HCI_LE_SET_DATA_RELATED_ADDRESS_CHANGES = HCI_OPCODE (OGF_LE_CONTROLLER, 0x7C),
-    HCI_OPCODE_HCI_LE_SET_DEFAULT_SUBRATE= HCI_OPCODE (OGF_LE_CONTROLLER, 0x7D),
-    HCI_OPCODE_HCI_LE_SUBRATE_REQUEST = HCI_OPCODE (OGF_LE_CONTROLLER, 0x7E),
 
     // Broadcom/Cypress/Infineon/Synaptics
     HCI_OPCODE_HCI_BCM_WRITE_SCO_PCM_INT = HCI_OPCODE (0x3f, 0x1c),
@@ -410,21 +406,22 @@ extern const hci_cmd_t hci_pin_code_request_reply;
 extern const hci_cmd_t hci_qos_setup;
 extern const hci_cmd_t hci_read_bd_addr;
 extern const hci_cmd_t hci_read_buffer_size;
-extern const hci_cmd_t hci_read_clock;
 extern const hci_cmd_t hci_read_clock_offset;
 extern const hci_cmd_t hci_read_encryption_key_size;
 extern const hci_cmd_t hci_read_extended_inquiry_length;
 extern const hci_cmd_t hci_read_extended_page_timeout;
-extern const hci_cmd_t hci_read_failed_contact_counter;
-extern const hci_cmd_t hci_read_inquiry_response_transmit_power_level;
 extern const hci_cmd_t hci_read_inquiry_scan_activity;
 extern const hci_cmd_t hci_read_le_host_supported;
 extern const hci_cmd_t hci_read_link_policy_settings;
-extern const hci_cmd_t hci_read_link_quality;
 extern const hci_cmd_t hci_read_link_supervision_timeout;
 extern const hci_cmd_t hci_read_local_extended_oob_data;
 extern const hci_cmd_t hci_read_local_name;
 extern const hci_cmd_t hci_read_local_oob_data;
+extern const hci_cmd_t hci_read_inquiry_response_transmit_power_level;
+extern const hci_cmd_t hci_write_inquiry_transmit_power_level;
+extern const hci_cmd_t hci_read_clock;
+extern const hci_cmd_t hci_read_failed_contact_counter;
+extern const hci_cmd_t hci_read_link_quality;
 extern const hci_cmd_t hci_read_local_supported_commands;
 extern const hci_cmd_t hci_read_local_supported_features;
 extern const hci_cmd_t hci_read_local_version_information;
@@ -439,7 +436,6 @@ extern const hci_cmd_t hci_read_remote_version_information;
 extern const hci_cmd_t hci_read_rssi;
 extern const hci_cmd_t hci_read_transmit_power_level;
 extern const hci_cmd_t hci_reject_connection_request;
-extern const hci_cmd_t hci_reject_synchronous_connection;
 extern const hci_cmd_t hci_remote_name_request;
 extern const hci_cmd_t hci_remote_name_request_cancel;
 extern const hci_cmd_t hci_remote_oob_data_request_negative_reply;
@@ -474,7 +470,6 @@ extern const hci_cmd_t hci_write_extended_page_timeout;
 extern const hci_cmd_t hci_write_inquiry_mode;
 extern const hci_cmd_t hci_write_inquiry_scan_activity;
 extern const hci_cmd_t hci_write_inquiry_scan_type;
-extern const hci_cmd_t hci_write_inquiry_transmit_power_level;
 extern const hci_cmd_t hci_write_le_host_supported;
 extern const hci_cmd_t hci_write_link_policy_settings;
 extern const hci_cmd_t hci_write_link_supervision_timeout;
@@ -578,10 +573,8 @@ extern const hci_cmd_t hci_le_set_connectionless_cte_transmit_enable;
 extern const hci_cmd_t hci_le_set_connectionless_cte_transmit_parameters;
 extern const hci_cmd_t hci_le_set_connectionless_iq_sampling_enable;
 extern const hci_cmd_t hci_le_set_data_length;
-extern const hci_cmd_t hci_le_set_data_related_address_changes;
 extern const hci_cmd_t hci_le_set_default_periodic_advertising_sync_transfer_parameters;
 extern const hci_cmd_t hci_le_set_default_phy;
-extern const hci_cmd_t hci_le_set_default_subrate;
 extern const hci_cmd_t hci_le_set_event_mask;
 extern const hci_cmd_t hci_le_set_extended_advertising_data;
 extern const hci_cmd_t hci_le_set_extended_advertising_enable;
@@ -608,7 +601,6 @@ extern const hci_cmd_t hci_le_set_scan_response_data;
 extern const hci_cmd_t hci_le_set_transmit_power_reporting_enable;
 extern const hci_cmd_t hci_le_setup_iso_data_path;
 extern const hci_cmd_t hci_le_start_encryption;
-extern const hci_cmd_t hci_le_subrate_request;
 extern const hci_cmd_t hci_le_terminate_big;
 extern const hci_cmd_t hci_le_test_end;
 extern const hci_cmd_t hci_le_transmitter_test;

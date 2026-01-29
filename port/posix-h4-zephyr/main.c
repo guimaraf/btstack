@@ -50,13 +50,15 @@
 #include <signal.h>
 
 #include "btstack_config.h"
-#include "btstack.h"
+
 #include "ble/le_device_db_tlv.h"
 #include "bluetooth_company_id.h"
 #include "btstack_chipset_zephyr.h"
 #include "btstack_debug.h"
 #include "btstack_event.h"
-#include "btstack_main_config.h"
+#include "btstack_memory.h"
+#include "btstack_run_loop.h"
+#include "btstack_run_loop_posix.h"
 #include "btstack_signal.h"
 #include "btstack_stdin.h"
 #include "btstack_tlv_posix.h"
@@ -77,12 +79,11 @@ static btstack_tlv_posix_t   tlv_context;
 static bool shutdown_triggered;
 
 static hci_transport_config_uart_t config = {
-    .type = HCI_TRANSPORT_CONFIG_UART,
-    .device_name = "/dev/ttyACM0",
-    .baudrate_init = 1000000,
-    .baudrate_main = 0,
-    .flowcontrol = BTSTACK_UART_FLOWCONTROL_ON,
-    .parity = BTSTACK_UART_PARITY_OFF,
+    HCI_TRANSPORT_CONFIG_UART,
+    1000000,
+    0,  // main baudrate
+    1,  // flow control
+    NULL,
 };
 
 static btstack_packet_callback_registration_t hci_event_callback_registration;
@@ -93,10 +94,6 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
     const uint8_t *params;
     if (packet_type != HCI_EVENT_PACKET) return;
     switch (hci_event_packet_get_type(packet)){
-        case BTSTACK_EVENT_POWERON_FAILED:
-            printf("Terminating.\n");
-            exit(EXIT_FAILURE);
-            break;
         case BTSTACK_EVENT_STATE:
             switch(btstack_event_state_get_state(packet)){
                 case HCI_STATE_WORKING:
@@ -157,13 +154,34 @@ void hal_led_toggle(void){
 
 int main(int argc, const char * argv[]){
 
-    btstack_main_config( argc, argv, &config, NULL, NULL );
+	/// GET STARTED with BTstack ///
+	btstack_memory_init();
+    btstack_run_loop_init(btstack_run_loop_posix_get_instance());
+
+    // log into file using HCI_DUMP_PACKETLOGGER format
+    const char * pklg_path = "/tmp/hci_dump.pklg";
+    hci_dump_posix_fs_open(pklg_path, HCI_DUMP_PACKETLOGGER);
+    const hci_dump_t * hci_dump_impl = hci_dump_posix_fs_get_instance();
+    hci_dump_init(hci_dump_impl);
+    printf("Packet Log: %s\n", pklg_path);
+
+    // pick serial port
+    config.device_name = "/dev/tty.usbmodem0006830491191"; // PCA10056 nRF52840 
+
+    // accept path from command line
+    if (argc >= 3 && strcmp(argv[1], "-u") == 0){
+        config.device_name = argv[2];
+        argc -= 2;
+        memmove((void *) &argv[1], &argv[3], (argc-1) * sizeof(char *));
+    }
+    printf("H4 device: %s\n", config.device_name);
+
     // init HCI
     const btstack_uart_t * uart_driver = btstack_uart_posix_instance();
-    const hci_transport_t * transport = hci_transport_h4_instance_for_uart(uart_driver);
-    hci_init(transport, (void*) &config);
+	const hci_transport_t * transport = hci_transport_h4_instance_for_uart(uart_driver);
+	hci_init(transport, (void*) &config);
     hci_set_chipset(btstack_chipset_zephyr_instance());
-
+    
     // inform about BTstack state
     hci_event_callback_registration.callback = &packet_handler;
     hci_add_event_handler(&hci_event_callback_registration);
@@ -178,7 +196,7 @@ int main(int argc, const char * argv[]){
     sm_init();
 
     // go
-    btstack_run_loop_execute();
+    btstack_run_loop_execute();    
 
     return 0;
 }

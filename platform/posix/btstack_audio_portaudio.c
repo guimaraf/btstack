@@ -49,12 +49,8 @@
 #define PA_SAMPLE_TYPE               paInt16
 #define NUM_FRAMES_PER_PA_BUFFER       512
 #define NUM_OUTPUT_BUFFERS               5
-#define NUM_INPUT_BUFFERS                5
+#define NUM_INPUT_BUFFERS                2
 #define DRIVER_POLL_INTERVAL_MS          5
-
-#ifndef MAX_NR_AUDIO_CHANNELS
-#define MAX_NR_AUDIO_CHANNELS 2
-#endif
 
 #include <portaudio.h>
 
@@ -63,9 +59,6 @@ static int                    num_channels_sink;
 static int                    num_channels_source;
 static int                    num_bytes_per_sample_sink;
 static int                    num_bytes_per_sample_source;
-
-static const char * sink_device_name;
-static const char * source_device_name = NULL;
 
 // portaudio
 static int portaudio_initialized;
@@ -82,18 +75,19 @@ static PaStream * stream_source;
 static PaStream * stream_sink;
 
 // client
-static void (*playback_callback)(int16_t * buffer, uint16_t num_samples, const btstack_audio_context_t * context);
-static void (*recording_callback)(const int16_t * buffer, uint16_t num_samples, const btstack_audio_context_t * context);
+static void (*playback_callback)(int16_t * buffer, uint16_t num_samples);
+static void (*recording_callback)(const int16_t * buffer, uint16_t num_samples);
 
 // output buffer
-static int16_t               output_buffer_storage[NUM_OUTPUT_BUFFERS * NUM_FRAMES_PER_PA_BUFFER * MAX_NR_AUDIO_CHANNELS];
+static int16_t               output_buffer_storage[NUM_OUTPUT_BUFFERS * NUM_FRAMES_PER_PA_BUFFER * 2];   // stereo
 static int16_t             * output_buffers[NUM_OUTPUT_BUFFERS];
 static int                   output_buffer_to_play;
 static int                   output_buffer_to_fill;
 
 // input buffer
-static int16_t               input_buffer_storage[NUM_INPUT_BUFFERS * NUM_FRAMES_PER_PA_BUFFER * MAX_NR_AUDIO_CHANNELS];
-static int16_t             * input_buffers[NUM_INPUT_BUFFERS];
+static int16_t               input_buffer_a[NUM_FRAMES_PER_PA_BUFFER * 2];   // stereo
+static int16_t               input_buffer_b[NUM_FRAMES_PER_PA_BUFFER * 2];   // stereo
+static int16_t             * input_buffers[NUM_INPUT_BUFFERS] = { input_buffer_a, input_buffer_b};
 static int                   input_buffer_to_record;
 static int                   input_buffer_to_fill;
 
@@ -172,7 +166,7 @@ static void driver_timer_handler_sink(btstack_timer_source_t * ts){
 
     // playback buffer ready to fill
     while (output_buffer_to_play != output_buffer_to_fill){
-        (*playback_callback)(output_buffers[output_buffer_to_fill], NUM_FRAMES_PER_PA_BUFFER, 0);
+        (*playback_callback)(output_buffers[output_buffer_to_fill], NUM_FRAMES_PER_PA_BUFFER);
 
         // next
         output_buffer_to_fill = (output_buffer_to_fill + 1 ) % NUM_OUTPUT_BUFFERS;
@@ -188,7 +182,7 @@ static void driver_timer_handler_source(btstack_timer_source_t * ts){
     // recording buffer ready to process
     if (input_buffer_to_record != input_buffer_to_fill){
 
-        (*recording_callback)(input_buffers[input_buffer_to_record], NUM_FRAMES_PER_PA_BUFFER, 0);
+        (*recording_callback)(input_buffers[input_buffer_to_record], NUM_FRAMES_PER_PA_BUFFER);
 
         // next
         input_buffer_to_record = (input_buffer_to_record + 1 ) % NUM_INPUT_BUFFERS;
@@ -202,18 +196,21 @@ static void driver_timer_handler_source(btstack_timer_source_t * ts){
 static int btstack_audio_portaudio_sink_init(
     uint8_t channels,
     uint32_t samplerate, 
-    void (*playback)(int16_t * buffer, uint16_t num_samples, const btstack_audio_context_t * context)
+    void (*playback)(int16_t * buffer, uint16_t num_samples)
 ){
     PaError err;
-
-    btstack_assert(channels <= MAX_NR_AUDIO_CHANNELS);
-    btstack_assert(playback != NULL);
 
     num_channels_sink = channels;
     num_bytes_per_sample_sink = 2 * channels;
 
-    for (int i=0;i<NUM_OUTPUT_BUFFERS;i++){
-        output_buffers[i] = &output_buffer_storage[i * NUM_FRAMES_PER_PA_BUFFER * MAX_NR_AUDIO_CHANNELS];
+    uint8_t i;
+    for (i=0;i<NUM_OUTPUT_BUFFERS;i++){
+        output_buffers[i] = &output_buffer_storage[i * NUM_FRAMES_PER_PA_BUFFER * 2];
+    }
+
+    if (!playback){
+        log_error("No playback callback");
+        return 1;
     }
 
     /* -- initialize PortAudio -- */
@@ -226,42 +223,24 @@ static int btstack_audio_portaudio_sink_init(
         portaudio_initialized = 1;        
     }
 
-    /* -- find output device by name if requested -- */
-    PaDeviceIndex device_index = -1;
-    const PaDeviceInfo *output_device_info;
-    if (sink_device_name != NULL){
-        int num_devices = Pa_GetDeviceCount();
-        for (int i = 0; i < num_devices; i++) {
-            output_device_info = Pa_GetDeviceInfo(i);
-            // Match device by prefix
-            if (strncmp(output_device_info->name, sink_device_name, strlen(sink_device_name)) == 0) {
-                device_index = i;
-                break;
-            }
-        }
-    }
-
-    /* -- use default device otherwise -- */
-    if (device_index < 0){
-        device_index = Pa_GetDefaultOutputDevice();
-        output_device_info = Pa_GetDeviceInfo(device_index );
-    }
     /* -- setup output -- */
-    PaStreamParameters output_parameters;
-    output_parameters.device = device_index;
-    output_parameters.channelCount = channels;
-    output_parameters.sampleFormat = PA_SAMPLE_TYPE;
-    output_parameters.suggestedLatency = output_device_info->defaultHighOutputLatency;
-    output_parameters.hostApiSpecificStreamInfo = NULL;
+    PaStreamParameters theOutputParameters;
+    theOutputParameters.device = Pa_GetDefaultOutputDevice(); /* default output device */
+    theOutputParameters.channelCount = channels;
+    theOutputParameters.sampleFormat = PA_SAMPLE_TYPE;
+    theOutputParameters.suggestedLatency = Pa_GetDeviceInfo( theOutputParameters.device )->defaultHighOutputLatency;
+    theOutputParameters.hostApiSpecificStreamInfo = NULL;
 
-    log_info("PortAudio: sink device: %s", output_device_info->name);
-    UNUSED(output_device_info);
+    const PaDeviceInfo *outputDeviceInfo;
+    outputDeviceInfo = Pa_GetDeviceInfo( theOutputParameters.device );
+    log_info("PortAudio: sink device: %s", outputDeviceInfo->name);
+    UNUSED(outputDeviceInfo);
 
     /* -- setup stream -- */
     err = Pa_OpenStream(
            &stream_sink,
            NULL,
-           &output_parameters,
+           &theOutputParameters,
            samplerate,
            NUM_FRAMES_PER_PA_BUFFER,
            paClipOff,           /* we won't output out of range samples so don't bother clipping them */
@@ -289,19 +268,16 @@ static int btstack_audio_portaudio_sink_init(
 static int btstack_audio_portaudio_source_init(
     uint8_t channels,
     uint32_t samplerate, 
-    void (*recording)(const int16_t * buffer, uint16_t num_samples, const btstack_audio_context_t * context)
+    void (*recording)(const int16_t * buffer, uint16_t num_samples)
 ){
     PaError err;
-
-    btstack_assert(channels <= MAX_NR_AUDIO_CHANNELS);
-    btstack_assert(recording != NULL);
 
     num_channels_source = channels;
     num_bytes_per_sample_source = 2 * channels;
 
-
-    for (int i=0;i<NUM_INPUT_BUFFERS;i++){
-        input_buffers[i] = &input_buffer_storage[i * NUM_FRAMES_PER_PA_BUFFER * MAX_NR_AUDIO_CHANNELS];
+    if (!recording){
+        log_error("No recording callback");
+        return 1;
     }
 
     /* -- initialize PortAudio -- */
@@ -314,37 +290,18 @@ static int btstack_audio_portaudio_source_init(
         portaudio_initialized = 1;        
     }
 
-    /* -- find input device by name if requested -- */
-    PaDeviceIndex device_index = -1;
-    const PaDeviceInfo *input_device_info;
-    if (source_device_name != NULL){
-        int num_devices = Pa_GetDeviceCount();
-        for (int i = 0; i < num_devices; i++) {
-            input_device_info = Pa_GetDeviceInfo(i);
-            // Match device by prefix
-            if (strncmp(input_device_info->name, source_device_name, strlen(source_device_name)) == 0) {
-                device_index = i;
-                break;
-            }
-        }
-    }
-
-    /* -- use default device otherwise -- */
-    if (device_index < 0){
-        device_index = Pa_GetDefaultInputDevice();
-        input_device_info = Pa_GetDeviceInfo(device_index );
-    }
-
     /* -- setup input -- */
     PaStreamParameters theInputParameters;
-    theInputParameters.device = device_index;
+    theInputParameters.device = Pa_GetDefaultInputDevice(); /* default input device */
     theInputParameters.channelCount = channels;
     theInputParameters.sampleFormat = PA_SAMPLE_TYPE;
-    theInputParameters.suggestedLatency = input_device_info->defaultHighInputLatency;
+    theInputParameters.suggestedLatency = Pa_GetDeviceInfo( theInputParameters.device )->defaultHighInputLatency;
     theInputParameters.hostApiSpecificStreamInfo = NULL;
 
-    log_info("PortAudio: source device: %s", input_device_info->name);
-    UNUSED(input_device_info);
+    const PaDeviceInfo *inputDeviceInfo;
+    inputDeviceInfo = Pa_GetDeviceInfo( theInputParameters.device );
+    log_info("PortAudio: source device: %s", inputDeviceInfo->name);
+    UNUSED(inputDeviceInfo);
 
     /* -- setup stream -- */
     err = Pa_OpenStream(
@@ -399,7 +356,7 @@ static void btstack_audio_portaudio_sink_start_stream(void){
     // fill buffers once
     uint8_t i;
     for (i=0;i<NUM_OUTPUT_BUFFERS-1;i++){
-        (*playback_callback)(&output_buffer_storage[i * NUM_FRAMES_PER_PA_BUFFER * MAX_NR_AUDIO_CHANNELS], NUM_FRAMES_PER_PA_BUFFER, 0);
+        (*playback_callback)(&output_buffer_storage[i*NUM_FRAMES_PER_PA_BUFFER*2], NUM_FRAMES_PER_PA_BUFFER);
     }
     output_buffer_to_play = 0;
     output_buffer_to_fill = NUM_OUTPUT_BUFFERS-1;
@@ -543,14 +500,6 @@ const btstack_audio_sink_t * btstack_audio_portaudio_sink_get_instance(void){
 
 const btstack_audio_source_t * btstack_audio_portaudio_source_get_instance(void){
     return &btstack_audio_portaudio_source;
-}
-
-void btstack_audio_portaudio_sink_set_device(const char * device_name){
-    sink_device_name = device_name;
-}
-
-void btstack_audio_portaudio_source_set_device(const char * device_name){
-    source_device_name = device_name;
 }
 
 #endif

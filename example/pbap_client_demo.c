@@ -69,10 +69,9 @@ static bd_addr_t    remote_addr;
 // PTS "001BDC080AA5"
 static  char * remote_addr_string = "DC:52:85:B4:AD:2B ";
 
-
-#ifdef HAVE_BTSTACK_STDIN
 static char * phone_number = "911";
 
+static const char * pb_name   = "pb";
 static const char * fav_name  = "fav";
 static const char * ich_name  = "ich";
 static const char * och_name  = "och";
@@ -80,19 +79,14 @@ static const char * mch_name  = "mch";
 static const char * cch_name  = "cch";
 static const char * spd_name  = "spd";
 
+static const char * phonebook_name;
+static char phonebook_folder[30];
+static char phonebook_path[30];
 static enum {
     PBAP_PATH_ROOT,
     PBAP_PATH_FOLDER,
     PBAP_PATH_PHONEBOOK
 } pbap_client_demo_path_type;
-#endif
-
-static const char * pb_name   = "pb";
-
-static const char * phonebook_name;
-static char phonebook_folder[30];
-static char phonebook_path[30];
-
 
 static btstack_packet_callback_registration_t hci_event_callback_registration;
 static uint16_t pbap_cid;
@@ -100,8 +94,8 @@ static uint16_t pbap_cid;
 static int sim1_selected;
 
 static void refresh_phonebook_folder_and_path(void){
-    btstack_snprintf_assert_complete(phonebook_path, sizeof(phonebook_path),   "%s%s.vcf", sim1_selected ? "SIM1/telecom/" : "telecom/", phonebook_name);
-    btstack_snprintf_assert_complete(phonebook_folder, sizeof(phonebook_folder), "%s%s",   sim1_selected ? "SIM1/telecom/" : "telecom/", phonebook_name);
+    snprintf(phonebook_path, sizeof(phonebook_path),   "%s%s.vcf", sim1_selected ? "SIM1/telecom/" : "telecom/", phonebook_name);
+    snprintf(phonebook_folder, sizeof(phonebook_folder), "%s%s",   sim1_selected ? "SIM1/telecom/" : "telecom/", phonebook_name);
     printf("[-] Phonebook folder '%s'\n", phonebook_folder);
     printf("[-] Phonebook path   '%s'\n", phonebook_path);
 }
@@ -124,7 +118,6 @@ static void show_usage(void){
     printf("Phonebook path   '%s'\n", phonebook_path);
     printf("\n");
     printf("a - establish PBAP connection to %s\n", bd_addr_to_str(remote_addr));
-    printf("A - disconnect PBAP connection to %s\n", bd_addr_to_str(remote_addr));
     printf("b - select SIM1\n");
     printf("r - set path to '/telecom'\n");
     printf("R - set path to '/SIM1/telecom'\n");
@@ -145,7 +138,7 @@ static void show_usage(void){
     printf("h - pull vCard listing '%s'\n",         phonebook_name);
     printf("l - get owner vCard 0.vcf\n");
     printf("j - Lookup contact with number '%s'\n", phone_number);
-    printf("t - disconnect HCI\n");
+    printf("t - disconnect\n");
     printf("p - authenticate using password '0000'\n");
     printf("r - set path to 'telecom'\n");
     printf("x - abort operation\n");
@@ -160,10 +153,6 @@ static void stdin_process(char c){
         case 'a':
             printf("[+] Connecting to %s...\n", bd_addr_to_str(remote_addr));
             pbap_connect(&packet_handler, remote_addr, &pbap_cid);
-            break;
-        case 'A':
-            printf("[+] Disconnect PBAP from %s...\n", bd_addr_to_str(remote_addr));
-            pbap_disconnect(pbap_cid);
             break;
         case 'b':
             printf("[+] SIM1 selected'\n");

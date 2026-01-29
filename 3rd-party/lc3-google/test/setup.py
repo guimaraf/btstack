@@ -17,7 +17,6 @@
 
 from setuptools import setup, Extension
 import os, sys, glob
-import numpy
 
 if len(sys.argv) <= 1:
   sys.argv = sys.argv + [
@@ -35,7 +34,7 @@ depends = [ 'ctypes.h' ] + \
           glob.glob(INC_DIR + os.sep + '*.h') + \
           glob.glob(SRC_DIR + os.sep + '*.[c,h]')
 
-includes = [ SRC_DIR, INC_DIR, numpy.get_include() ]
+includes = [ SRC_DIR, INC_DIR ]
 
 extension = Extension('lc3',
   extra_compile_args = [ '-std=c11', '-ffast-math' ],

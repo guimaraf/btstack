@@ -54,8 +54,6 @@ typedef struct {
 	FILE * file;
 } btstack_tlv_posix_t;
 
-/* API_START */
-
 /**
  * Init Tag Length Value Store
  * @param context btstack_tlv_posix_t 
@@ -74,8 +72,6 @@ void btstack_tlv_posix_set_read_only(void);
  * @param self
  */
 void btstack_tlv_posix_deinit(btstack_tlv_posix_t * self);
-
-/* API_END */
 
 #if defined __cplusplus
 }

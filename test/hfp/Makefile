@@ -1,13 +1,13 @@
 # Makefile for libusb based PTS tests
 
+BTSTACK_ROOT = ../..
 POSIX_ROOT= ${BTSTACK_ROOT}/platform/posix
-BTSTACK_ROOT ?= ../..
+
+# CppuTest from pkg-config
+CFLAGS  += ${shell pkg-config --cflags CppuTest}
+LDFLAGS += ${shell pkg-config --libs   CppuTest}
 
 include ${BTSTACK_ROOT}/example/Makefile.inc
-
-CXXFLAGS := ${CFLAGS}
-
-include ../common.make
 
 COMMON = \
 	ad_parser.c 				 \
@@ -42,67 +42,90 @@ MOCK = \
     hci_dump.c     				\
     sdp_util.c	                \
 
-DEFINES := -DUNIT_TEST
-DEFINES += -DENABLE_TESTING_SUPPORT
+CFLAGS  += -DUNIT_TEST -g -Wall -Wnarrowing -Wconversion-null
+CFLAGS  += -I. -I../
+CFLAGS  += -I${BTSTACK_ROOT}/src
+CFLAGS  += -I${BTSTACK_ROOT}/src/classic
+CFLAGS  += -I${BTSTACK_ROOT}/platform/posix
+# CFLAGS  += -D OCTAVE_OUTPUT
 
-INCLUDES += -I. -I../
-INCLUDES += -I${BTSTACK_ROOT}/src
-INCLUDES += -I${BTSTACK_ROOT}/src/classic
-INCLUDES += -I${BTSTACK_ROOT}/platform/posix
+CFLAGS_COVERAGE = ${CFLAGS} -fprofile-arcs -ftest-coverage
+CFLAGS_ASAN     = ${CFLAGS} -fsanitize=address -DHAVE_ASSERT
 
-CXXFLAGS += ${INCLUDES} ${DEFINES}
-CFLAGS += ${INCLUDES} ${DEFINES}
+LDFLAGS += -lCppUTest -lCppUTestExt
+LDFLAGS_COVERAGE = ${LDFLAGS} -fprofile-arcs -ftest-coverage
+LDFLAGS_ASAN     = ${LDFLAGS} -fsanitize=address
 
 COMMON_OBJ_COVERAGE = $(addprefix build-coverage/,$(COMMON:.c=.o))
 COMMON_OBJ_ASAN     = $(addprefix build-asan/,    $(COMMON:.c=.o))
 MOCK_OBJ_COVERAGE   = $(addprefix build-coverage/,$(MOCK:.c=.o))
 MOCK_OBJ_ASAN       = $(addprefix build-asan/,    $(MOCK:.c=.o))
 
+
+# CC = gcc-fsf-4.9
 VPATH += ${BTSTACK_ROOT}/src
 VPATH += ${BTSTACK_ROOT}/src/classic
 VPATH += ${BTSTACK_ROOT}/platform/posix
 
-EXAMPLES = hfp_at_parser_test hfp_ag_client_test hfp_hf_client_test hfp_hf_vra_test hfp_ag_vra_test cvsd_plc_test hfp_link_settings_test
+EXAMPLES = hfp_at_parser_test hfp_ag_client_test hfp_hf_client_test cvsd_plc_test hfp_link_settings_test
 
 all:  $(addprefix build-coverage/,${EXAMPLES}) $(addprefix build-asan/,${EXAMPLES}) build-asan/pklg_cvsd_test
 
-build-coverage/hfp_at_parser_test: ${MOCK_OBJ_COVERAGE} build-coverage/hfp_gsm_model.o build-coverage/hfp_ag.o build-coverage/hfp.o
+build-%:
+	mkdir -p $@
 
-build-coverage/hfp_hf_client_test: ${MOCK_OBJ_COVERAGE} build-coverage/hfp_hf.o build-coverage/hfp.o
 
-build-coverage/hfp_ag_client_test: ${MOCK_OBJ_COVERAGE} build-coverage/hfp_gsm_model.o build-coverage/hfp_ag.o build-coverage/hfp.o
+build-coverage/%.o: %.c | build-coverage
+	${CC} -c $(CFLAGS_COVERAGE) $< -o $@
 
-build-coverage/cvsd_plc_test: ${MOCK_OBJ_COVERAGE} build-coverage/btstack_cvsd_plc.o build-coverage/wav_util.o
+build-coverage/%.o: %.cpp | build-coverage
+	${CXX} -c $(CFLAGS_COVERAGE) $< -o $@
 
-build-coverage/hfp_link_settings_test: ${MOCK_OBJ_COVERAGE} build-coverage/hfp_hf.o build-coverage/hfp.o
+build-asan/%.o: %.c | build-asan
+	${CC} -c $(CFLAGS_ASAN) $< -o $@
 
-build-coverage/hfp_hf_vra_test: ${MOCK_OBJ_COVERAGE} build-coverage/hfp_hf.o build-coverage/hfp.o
+build-asan/%.o: %.cpp | build-asan
+	${CXX} -c $(CFLAGS_ASAN) $< -o $@
 
-build-coverage/hfp_ag_vra_test: ${MOCK_OBJ_COVERAGE} build-coverage/hfp_gsm_model.o build-coverage/hfp_ag.o build-coverage/hfp.o
+build-coverage/hfp_at_parser_test: ${COMMON_OBJ_COVERAGE} build-coverage/hfp_gsm_model.o build-coverage/hfp_ag.o build-coverage/hfp.o build-coverage/hfp_at_parser_test.o | build-coverage
+	${CXX} $^ ${LDFLAGS_COVERAGE} -o $@
 
-build-asan/hfp_at_parser_test: ${MOCK_OBJ_ASAN} build-asan/hfp_gsm_model.o build-asan/hfp_ag.o build-asan/hfp.o
+build-coverage/hfp_hf_client_test: ${MOCK_OBJ_COVERAGE} build-coverage/hfp_hf.o build-coverage/hfp.o build-coverage/hfp_hf_client_test.o | build-coverage
+	${CXX} $^ ${LDFLAGS_COVERAGE} -o $@
 
-build-asan/hfp_hf_client_test: ${MOCK_OBJ_ASAN} build-asan/hfp_hf.o build-asan/hfp.o
+build-coverage/hfp_ag_client_test: ${MOCK_OBJ_COVERAGE} build-coverage/hfp_gsm_model.o build-coverage/hfp_ag.o build-coverage/hfp.o build-coverage/hfp_ag_client_test.o | build-coverage
+	${CXX} $^ ${LDFLAGS_COVERAGE} -o $@
 
-build-asan/hfp_ag_client_test: ${MOCK_OBJ_ASAN} build-asan/hfp_gsm_model.o build-asan/hfp_ag.o build-asan/hfp.o
+build-coverage/cvsd_plc_test: ${COMMON_OBJ_COVERAGE} build-coverage/btstack_cvsd_plc.o build-coverage/wav_util.o build-coverage/cvsd_plc_test.o | build-coverage
+	${CXX} $^ ${LDFLAGS_COVERAGE} -o $@
 
-build-asan/cvsd_plc_test: ${MOCK_OBJ_ASAN} build-asan/btstack_cvsd_plc.o build-asan/wav_util.o
+build-coverage/hfp_link_settings_test: ${MOCK_OBJ_COVERAGE} build-coverage/hfp_hf.o build-coverage/hfp.o build-coverage/hfp_link_settings_test.o | build-coverage
+	${CXX} $^ ${LDFLAGS_COVERAGE} -o $@
 
-build-asan/hfp_link_settings_test: ${MOCK_OBJ_ASAN} build-asan/hfp_hf.o build-asan/hfp.o
 
-build-asan/pklg_cvsd_test: build-asan/hci_dump.o build-asan/btstack_util.o build-asan/btstack_cvsd_plc.o build-asan/wav_util.o
+build-asan/hfp_at_parser_test: ${COMMON_OBJ_ASAN} build-asan/hfp_gsm_model.o build-asan/hfp_ag.o build-asan/hfp.o build-asan/hfp_at_parser_test.o | build-asan
+	${CXX} $^ ${LDFLAGS_ASAN} -o $@
 
-build-asan/hfp_hf_vra_test: ${MOCK_OBJ_ASAN} build-asan/hfp_hf.o build-asan/hfp.o
+build-asan/hfp_hf_client_test: ${MOCK_OBJ_ASAN} build-asan/hfp_hf.o build-asan/hfp.o build-asan/hfp_hf_client_test.o | build-asan
+	${CXX} $^ ${LDFLAGS_ASAN} -o $@
 
-build-asan/hfp_ag_vra_test: ${MOCK_OBJ_ASAN} build-asan/hfp_gsm_model.o build-asan/hfp_ag.o build-asan/hfp.o
+build-asan/hfp_ag_client_test: ${MOCK_OBJ_ASAN} build-asan/hfp_gsm_model.o build-asan/hfp_ag.o build-asan/hfp.o build-asan/hfp_ag_client_test.o | build-asan
+	${CXX} $^ ${LDFLAGS_ASAN} -o $@
+
+build-asan/cvsd_plc_test: ${COMMON_OBJ_ASAN} build-asan/btstack_cvsd_plc.o build-asan/wav_util.o build-asan/cvsd_plc_test.o | build-asan
+	${CXX} $^ ${LDFLAGS_ASAN} -o $@
+
+build-asan/hfp_link_settings_test: ${MOCK_OBJ_ASAN} build-asan/hfp_hf.o build-asan/hfp.o build-asan/hfp_link_settings_test.o | build-asan
+	${CXX} $^ ${LDFLAGS_ASAN} -o $@
+
+build-asan/pklg_cvsd_test: build-asan/hci_dump.o build-asan/btstack_util.o build-asan/btstack_cvsd_plc.o build-asan/wav_util.o build-asan/pklg_cvsd_test.o | build-asan
+	${CXX} $^ ${LDFLAGS_ASAN} -o $@
 
 test: all
 	mkdir -p results
 	build-asan/hfp_at_parser_test
 	build-asan/hfp_ag_client_test
 	build-asan/hfp_hf_client_test
-	build-asan/hfp_hf_vra_test
-	build-asan/hfp_ag_vra_test
 	build-asan/cvsd_plc_test
 	build-asan/hfp_link_settings_test
 
@@ -111,8 +134,6 @@ coverage: all
 	build-coverage/hfp_at_parser_test
 	build-coverage/hfp_ag_client_test
 	build-coverage/hfp_hf_client_test
-	build-coverage/hfp_hf_vra_test
-	build-coverage/hfp_ag_vra_test
 	build-coverage/cvsd_plc_test
 	build-coverage/hfp_link_settings_test
 

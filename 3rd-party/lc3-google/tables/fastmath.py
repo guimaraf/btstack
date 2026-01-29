@@ -19,33 +19,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def fast_exp2(x, t, p):
+def fast_exp2(x, p):
 
     p = p.astype(np.float32)
     x = x.astype(np.float32)
 
-    m = ((x + 0.5/8) % (1/8)) - (0.5/8)
-    e = int((x - m) * 8)
+    y = (((((p[0]*x) + p[1])*x + p[2])*x + p[3])*x + p[4])*x + 1
 
-    y = ((((p[0]*m) + p[1])*m + p[2])*m + p[3])*m + p[4]
-    y = y * 2**(e // 8) * t[e % 8]
-
-    return y.astype(np.float32)
+    return np.power(y.astype(np.float32), 16)
 
 def approx_exp2():
 
-    x = np.arange(0, 1/8, step=1e-6)
-    p = np.polyfit(x, 2 ** x, 4)
-    t = [ 2**(i/8) for i in range(8) ]
+    x = np.arange(-8, 8, step=1e-3)
 
-    x =  np.arange(-10, 10, step=1e-3)
-    y = [ fast_exp2(x[i], t, p) for i in range(len(x)) ]
-
+    p = np.polyfit(x, ((2 ** (x/16)) - 1) / x, 4)
+    y = [ fast_exp2(x[i], p) for i in range(len(x)) ]
     e = np.abs(y - 2**x) / (2 ** x)
 
-    print('{{ {:14.8e}, {:14.8e}, {:14.8e}, {:14.8e}, \n'
-           '  {:14.8e}, {:14.8e}, {:14.8e}, {:14.8e}, '.format(*t))
-    print('{{ {:14.8e}, {:14.8e}, {:14.8e}, {:14.8e}, {:14.8e} }}'.format(*p))
+    print('{{ {:14.8e}, {:14.8e}, {:14.8e}, {:14.8e}, {:14.8e} }}'
+                .format(p[0], p[1], p[2], p[3], p[4]))
     print('Max relative error: ', np.max(e))
     print('Max RMS error: ', np.sqrt(np.mean(e ** 2)))
 
@@ -102,11 +94,11 @@ def approx_log2():
 
 def table_db_q16():
 
-    k = 10 * np.log10(2)
+    k = 10 * np.log10(2);
 
     for i in range(32):
-        a = k * np.log2(np.ldexp(32 + i  , -5)) - (i // 16) * (k/2)
-        b = k * np.log2(np.ldexp(32 + i+1, -5)) - (i // 16) * (k/2)
+        a = k * np.log2(np.ldexp(32 + i  , -5)) - (i // 16) * (k/2);
+        b = k * np.log2(np.ldexp(32 + i+1, -5)) - (i // 16) * (k/2);
 
         an = np.ldexp(a, 15) + 0.5
         bn = np.ldexp(b - a, 15) + 0.5

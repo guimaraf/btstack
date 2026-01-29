@@ -42,7 +42,6 @@
 #include "ble/att_db.h"
 #include "ble/core.h"
 #include "bluetooth.h"
-#include "bluetooth_gatt.h"
 #include "btstack_debug.h"
 #include "btstack_util.h"
 
@@ -73,7 +72,7 @@ static bool is_Bluetooth_Base_UUID(uint8_t const *uuid){
 
 static uint16_t uuid16_from_uuid(uint16_t uuid_len, uint8_t * uuid){
     if (uuid_len == 2u){
-        return little_endian_read_16(uuid, 0);
+        return little_endian_read_16(uuid, 0u);
     }
     if (!is_Bluetooth_Base_UUID(uuid)){
         return 0;
@@ -101,7 +100,7 @@ static void att_persistent_ccc_cache(att_iterator_t * it);
 static uint8_t const * att_database = NULL;
 static att_read_callback_t  att_read_callback  = NULL;
 static att_write_callback_t att_write_callback = NULL;
-static uint16_t att_prepare_write_error_code   = 0;
+static int      att_prepare_write_error_code   = 0;
 static uint16_t att_prepare_write_error_handle = 0x0000;
 
 // single cache for att_is_persistent_ccc - stores flags before write callback
@@ -142,25 +141,17 @@ static void att_iterator_fetch_next(att_iterator_t *it){
     it->att_ptr += it->size;
 }
 
-static uint16_t att_iterator_get_uuid16(const att_iterator_t *it) {
+static bool att_iterator_match_uuid16(att_iterator_t *it, uint16_t uuid){
     if (it->handle == 0u){
         return false;
     }
     if ((it->flags & (uint16_t)ATT_PROPERTY_UUID128) != 0u){
         if (!is_Bluetooth_Base_UUID(it->uuid)){
-            return 0;
+            return false;
         }
-        return little_endian_read_16(it->uuid, 12);
+        return little_endian_read_16(it->uuid, 12) == uuid;
     }
-    return little_endian_read_16(it->uuid, 0);
-}
-
-static bool att_iterator_match_uuid16(const att_iterator_t *it, uint16_t uuid16){
-    if (uuid16 == 0) {
-        return false;
-    }
-    uint16_t current_uuid16 = att_iterator_get_uuid16(it);
-    return current_uuid16 == uuid16;
+    return little_endian_read_16(it->uuid, 0)  == uuid;
 }
 
 static bool att_iterator_match_uuid(att_iterator_t *it, uint8_t *uuid, uint16_t uuid_len){
@@ -195,16 +186,6 @@ static bool att_find_handle(att_iterator_t *it, uint16_t handle){
         }
     }
     return false;
-}
-
-static bool att_iterator_new_service_started(const att_iterator_t *it) {
-    switch (att_iterator_get_uuid16(it)) {
-        case GATT_PRIMARY_SERVICE_UUID:
-        case GATT_SECONDARY_SERVICE_UUID:
-            return true;
-        default:
-            return false;
-    }
 }
 
 // experimental client API
@@ -252,7 +233,7 @@ static int att_copy_value(att_iterator_t *it, uint16_t offset, uint8_t * buffer,
     }
     
     // STATIC
-    uint16_t bytes_to_copy = (uint16_t) btstack_min(it->value_len - offset, buffer_size);
+    uint16_t bytes_to_copy = btstack_min(it->value_len - offset, buffer_size);
     (void)memcpy(buffer, it->value, bytes_to_copy);
     return bytes_to_copy;
 }
@@ -315,7 +296,7 @@ static void att_prepare_write_update_errors(uint8_t error_code, uint16_t handle)
         return;
     }
     // first ATT_ERROR_INVALID_OFFSET is next
-    if ((error_code == (uint8_t)ATT_ERROR_INVALID_OFFSET) && (att_prepare_write_error_code == 0u)){
+    if ((error_code == (uint8_t)ATT_ERROR_INVALID_OFFSET) && (att_prepare_write_error_code == 0)){
         att_prepare_write_error_code = error_code;
         att_prepare_write_error_handle = handle;
         return;
@@ -441,7 +422,7 @@ static uint16_t handle_exchange_mtu_request(att_connection_t * att_connection, u
     uint16_t client_rx_mtu = little_endian_read_16(request_buffer, 1);
     
     // find min(local max mtu, remote mtu) >= ATT_DEFAULT_MTU and use as mtu for this connection
-    uint16_t min_mtu = (uint16_t) btstack_min(client_rx_mtu, att_connection->max_mtu);
+    uint16_t min_mtu = btstack_min(client_rx_mtu, att_connection->max_mtu);
     uint16_t new_mtu = btstack_max(ATT_DEFAULT_MTU, min_mtu);
     att_connection->mtu_exchanged = true;
     att_connection->mtu = new_mtu;
@@ -586,14 +567,12 @@ static uint16_t handle_find_by_type_value_request(att_connection_t * att_connect
             continue;
         }
         if (it.handle > end_handle){
-            break;  // (1)
-        }
-
-        bool new_service_started = att_iterator_new_service_started(&it);
+        break;  // (1)
+    }
 
         // close current tag, if within a group and a new service definition starts or we reach end of att db
         if (in_group &&
-            ((it.handle == 0u) || new_service_started)){
+            ((it.handle == 0u) || att_iterator_match_uuid16(&it, GATT_PRIMARY_SERVICE_UUID) || att_iterator_match_uuid16(&it, GATT_SECONDARY_SERVICE_UUID))){
 
             log_info("End of group, handle 0x%04x", prev_handle);
             little_endian_store_16(response_buffer, offset, prev_handle);
@@ -662,7 +641,7 @@ static uint16_t handle_read_by_type_request2(att_connection_t * att_connection, 
         }
         
         // skip handles that cannot be read but remember that there has been at least one
-        if ((it.flags & ATT_PROPERTY_READ) == 0u) {
+        if ((it.flags & (uint16_t)ATT_PROPERTY_READ) == 0u) {
             if (first_matching_but_unreadable_handle == 0u) {
                 first_matching_but_unreadable_handle = it.handle;
             }
@@ -773,7 +752,7 @@ static uint16_t handle_read_request2(att_connection_t * att_connection, uint8_t 
     }
     
     // check if handle can be read
-    if ((it.flags & ATT_PROPERTY_READ) == 0u) {
+    if ((it.flags & (uint16_t)ATT_PROPERTY_READ) == 0u) {
         return setup_error_read_not_permitted(response_buffer, request_type, handle);
     }
 
@@ -831,7 +810,7 @@ static uint16_t handle_read_blob_request2(att_connection_t * att_connection, uin
     }
     
     // check if handle can be read
-    if ((it.flags & ATT_PROPERTY_READ) == 0u) {
+    if ((it.flags & (uint16_t)ATT_PROPERTY_READ) == 0u) {
         return setup_error_read_not_permitted(response_buffer, request_type, handle);
     }
 
@@ -916,7 +895,7 @@ static uint16_t handle_read_multiple_request2(att_connection_t * att_connection,
         }
 
         // check if handle can be read
-        if ((it.flags & ATT_PROPERTY_READ) == 0u) {
+        if ((it.flags & (uint16_t)ATT_PROPERTY_READ) == 0u) {
             error_code = (uint8_t)ATT_ERROR_READ_NOT_PERMITTED;
             break;
         }
@@ -1046,11 +1025,10 @@ static uint16_t handle_read_by_group_type_request2(att_connection_t * att_connec
         }
 
         // log_info("Handle 0x%04x", it.handle);
-        bool new_service_started = att_iterator_new_service_started(&it);
-
+        
         // close current tag, if within a group and a new service definition starts or we reach end of att db
         if (in_group &&
-            ((it.handle == 0u) || new_service_started)){
+            ((it.handle == 0u) || att_iterator_match_uuid16(&it, GATT_PRIMARY_SERVICE_UUID) || att_iterator_match_uuid16(&it, GATT_SECONDARY_SERVICE_UUID))){
             // log_info("End of group, handle 0x%04x, val_len: %u", prev_handle, pair_len - 4);
             
             little_endian_store_16(response_buffer, offset, group_start_handle);
@@ -1147,19 +1125,19 @@ static uint16_t handle_write_request(att_connection_t * att_connection, uint8_t 
     if (att_write_callback == NULL) {
         return setup_error_write_not_permitted(response_buffer, request_type, handle);
     }
-    if ((it.flags & ATT_PROPERTY_WRITE) == 0u) {
+    if ((it.flags & (uint16_t)ATT_PROPERTY_WRITE) == 0u) {
         return setup_error_write_not_permitted(response_buffer, request_type, handle);
     }
-    if ((it.flags & ATT_PROPERTY_DYNAMIC) == 0u) {
+    if ((it.flags & (uint16_t)ATT_PROPERTY_DYNAMIC) == 0u) {
         return setup_error_write_not_permitted(response_buffer, request_type, handle);
     }
     // check security requirements
-    uint16_t error_code = (uint16_t) att_validate_security(att_connection, ATT_WRITE, &it);
-    if (error_code != 0u) {
+    int error_code = att_validate_security(att_connection, ATT_WRITE, &it);
+    if (error_code != 0) {
         return setup_error(response_buffer, request_type, handle, error_code);
     }
     att_persistent_ccc_cache(&it);
-    error_code = (uint16_t)(unsigned int)(*att_write_callback)(att_connection->con_handle, handle, ATT_TRANSACTION_MODE_NONE, 0u, request_buffer + 3u, request_len - 3u);
+    error_code = (*att_write_callback)(att_connection->con_handle, handle, ATT_TRANSACTION_MODE_NONE, 0u, request_buffer + 3u, request_len - 3u);
 
 #ifdef ENABLE_ATT_DELAYED_RESPONSE
     if (error_code == ATT_ERROR_WRITE_RESPONSE_PENDING){
@@ -1167,7 +1145,7 @@ static uint16_t handle_write_request(att_connection_t * att_connection, uint8_t 
     }
 #endif
 
-    if (error_code != 0u) {
+    if (error_code != 0) {
         return setup_error(response_buffer, request_type, handle, error_code);
     }
     response_buffer[0] = (uint8_t)ATT_WRITE_RESPONSE;
@@ -1194,10 +1172,10 @@ static uint16_t handle_prepare_write_request(att_connection_t * att_connection, 
     if (att_find_handle(&it, handle) == false) {
         return setup_error_invalid_handle(response_buffer, request_type, handle);
     }
-    if ((it.flags & ATT_PROPERTY_WRITE) == 0u) {
+    if ((it.flags & (uint16_t)ATT_PROPERTY_WRITE) == 0u) {
         return setup_error_write_not_permitted(response_buffer, request_type, handle);
     }
-    if ((it.flags & ATT_PROPERTY_DYNAMIC) == 0u) {
+    if ((it.flags & (uint16_t)ATT_PROPERTY_DYNAMIC) == 0u) {
         return setup_error_write_not_permitted(response_buffer, request_type, handle);
     }
     // check security requirements
@@ -1224,7 +1202,7 @@ static uint16_t handle_prepare_write_request(att_connection_t * att_connection, 
     }
 
     // response: echo request
-    uint16_t bytes_to_echo = (uint16_t) btstack_min(request_len, response_buffer_size);
+    uint16_t bytes_to_echo = btstack_min(request_len, response_buffer_size);
     (void)memcpy(response_buffer, request_buffer, bytes_to_echo);
     response_buffer[0] = ATT_PREPARE_WRITE_RESPONSE;
     return request_len;
@@ -1254,10 +1232,10 @@ static uint16_t handle_execute_write_request(att_connection_t * att_connection, 
         return setup_error_write_not_permitted(response_buffer, request_type, 0);
     }
 
-    if (request_buffer[1] != 0u) {
+    if (request_buffer[1] != 0) {
         // validate queued write
-        if (att_prepare_write_error_code == 0u){
-            att_prepare_write_error_code = (uint16_t)(unsigned int)(*att_write_callback)(att_connection->con_handle, 0, ATT_TRANSACTION_MODE_VALIDATE, 0, NULL, 0);
+        if (att_prepare_write_error_code == 0){
+            att_prepare_write_error_code = (*att_write_callback)(att_connection->con_handle, 0, ATT_TRANSACTION_MODE_VALIDATE, 0, NULL, 0);
         }
 #ifdef ENABLE_ATT_DELAYED_RESPONSE
         if (att_prepare_write_error_code == ATT_ERROR_WRITE_RESPONSE_PENDING){
@@ -1265,7 +1243,7 @@ static uint16_t handle_execute_write_request(att_connection_t * att_connection, 
         }
 #endif
         // deliver queued errors
-        if (att_prepare_write_error_code != 0u){
+        if (att_prepare_write_error_code != 0){
             att_clear_transaction_queue(att_connection);
             uint8_t  error_code = att_prepare_write_error_code;
             uint16_t handle     = att_prepare_write_error_handle;
@@ -1319,7 +1297,7 @@ static uint16_t prepare_handle_value(att_connection_t * att_connection,
                                      uint16_t value_len, 
                                      uint8_t * response_buffer){
     little_endian_store_16(response_buffer, 1, handle);
-    uint16_t bytes_to_copy = (uint16_t) btstack_min(value_len, att_connection->mtu - 3u);
+    uint16_t bytes_to_copy = btstack_min(value_len, att_connection->mtu - 3u);
     (void)memcpy(&response_buffer[3], value, bytes_to_copy);
     return value_len + 3u;
 }
@@ -1349,13 +1327,13 @@ uint16_t att_prepare_handle_value_multiple_notification(att_connection_t * att_c
     uint16_t response_buffer_size = att_connection->mtu - 3u;
     for (i = 0; i < num_attributes; i++) {
         uint16_t value_len = values_len[i];
-        if ((offset + 4u + value_len) > response_buffer_size){
+        if ((offset + 4 + value_len) > response_buffer_size){
             break;
         }
         little_endian_store_16(response_buffer, offset, attribute_handles[i]);
-        offset += 2u;
+        offset += 2;
         little_endian_store_16(response_buffer, offset, value_len);
-        offset += 2u;
+        offset += 2;
         (void) memcpy(&response_buffer[offset], values_data[i], value_len);
         offset += value_len;
     }
@@ -1436,21 +1414,21 @@ uint16_t att_handle_request(att_connection_t * att_connection,
     return response_len;
 }
 
-// returns 1 if service found.
+// returns 1 if service found. only primary service.
 bool gatt_server_get_handle_range_for_service_with_uuid16(uint16_t uuid16, uint16_t * start_handle, uint16_t * end_handle){
     bool in_group    = false;
     uint16_t prev_handle = 0;
     uint16_t service_start = 0;
 
     uint8_t attribute_value[2];
-    const uint16_t attribute_len = (uint16_t) sizeof(attribute_value);
+    int attribute_len = sizeof(attribute_value);
     little_endian_store_16(attribute_value, 0, uuid16);
 
     att_iterator_t it;
     att_iterator_init(&it);
     while (att_iterator_has_next(&it)){
         att_iterator_fetch_next(&it);
-        bool new_service_started = att_iterator_new_service_started(&it);
+        int new_service_started = att_iterator_match_uuid16(&it, GATT_PRIMARY_SERVICE_UUID) || att_iterator_match_uuid16(&it, GATT_SECONDARY_SERVICE_UUID);
 
         // close current tag, if within a group and a new service definition starts or we reach end of att db
         if (in_group &&
@@ -1513,15 +1491,13 @@ uint16_t gatt_server_get_descriptor_handle_for_characteristic_with_uuid16(uint16
         if (it.handle == 0u){
             break;
         }
-        uint16_t uuid16 = att_iterator_get_uuid16(&it);
-
-        if (uuid16 == characteristic_uuid16){
+        if (att_iterator_match_uuid16(&it, characteristic_uuid16)){
             characteristic_found = true;
             continue;
         }
-        if ((uuid16 == GATT_PRIMARY_SERVICE_UUID)
-         || (uuid16 == GATT_SECONDARY_SERVICE_UUID)
-         || (uuid16 == GATT_CHARACTERISTICS_UUID)){
+        if (att_iterator_match_uuid16(&it, GATT_PRIMARY_SERVICE_UUID) 
+         || att_iterator_match_uuid16(&it, GATT_SECONDARY_SERVICE_UUID)
+         || att_iterator_match_uuid16(&it, GATT_CHARACTERISTICS_UUID)){
             if (characteristic_found){
                 break;
             }
@@ -1557,7 +1533,7 @@ bool gatt_server_get_handle_range_for_service_with_uuid128(const uint8_t * uuid1
     att_iterator_init(&it);
     while (att_iterator_has_next(&it)){
         att_iterator_fetch_next(&it);
-        int new_service_started = att_iterator_new_service_started(&it);
+        int new_service_started = att_iterator_match_uuid16(&it, GATT_PRIMARY_SERVICE_UUID) || att_iterator_match_uuid16(&it, GATT_SECONDARY_SERVICE_UUID);
 
         // close current tag, if within a group and a new service definition starts or we reach end of att db
         if (in_group &&
@@ -1620,15 +1596,13 @@ uint16_t gatt_server_get_client_configuration_handle_for_characteristic_with_uui
         if (it.handle == 0u){
             break;
         }
-
         if (att_iterator_match_uuid(&it, attribute_value, 16)){
             characteristic_found = true;
             continue;
         }
-        uint16_t uuid16 = att_iterator_get_uuid16(&it);
-        if ((uuid16 == GATT_PRIMARY_SERVICE_UUID)
-         || (uuid16 == GATT_SECONDARY_SERVICE_UUID)
-         || (uuid16 == GATT_CHARACTERISTICS_UUID)){
+        if (att_iterator_match_uuid16(&it, GATT_PRIMARY_SERVICE_UUID) 
+         || att_iterator_match_uuid16(&it, GATT_SECONDARY_SERVICE_UUID)
+         || att_iterator_match_uuid16(&it, GATT_CHARACTERISTICS_UUID)){
             if (characteristic_found){
                 break;
             }
@@ -1658,35 +1632,13 @@ bool gatt_server_get_included_service_with_uuid16(uint16_t start_handle, uint16_
         if (it.handle == 0u){
             break;
         }
-        if ((it.value_len == 6u) && (att_iterator_match_uuid16(&it, GATT_INCLUDE_SERVICE_UUID))){
+        if ((it.value_len == 6) && (att_iterator_match_uuid16(&it, GATT_INCLUDE_SERVICE_UUID))){
             if (little_endian_read_16(it.value, 4) == uuid16){
                 *out_included_service_handle = it.handle;
                 *out_included_service_start_handle = little_endian_read_16(it.value, 0);
                 *out_included_service_end_handle = little_endian_read_16(it.value, 2);
                 return true;
             }
-        }
-    }
-    return false;
-}
-
-bool gatt_server_get_database_hash(uint8_t * hash) {
-    att_iterator_t it;
-    att_iterator_init(&it);
-    uint16_t value_handle = 0xffff;
-    while (att_iterator_has_next(&it)){
-        att_iterator_fetch_next(&it);
-        // Find Characteristic declaration for Database Hash
-        if ((it.value_len == 5u) && (att_iterator_match_uuid16(&it, GATT_CHARACTERISTICS_UUID))){
-            uint16_t characteristic_uuid = little_endian_read_16(it.value, 3);
-            if (characteristic_uuid == (uint16_t) ORG_BLUETOOTH_CHARACTERISTIC_DATABASE_HASH){
-                value_handle = little_endian_read_16(it.value, 1);
-            }
-        }
-        // Find Characteristic Value for Database Hash and get value
-        if ((it.handle == value_handle) && (it.value_len == 16u)){
-            att_copy_value(&it, 0, hash, 16, HCI_CON_HANDLE_INVALID);
-            return true;
         }
     }
     return false;
@@ -1727,7 +1679,7 @@ uint16_t att_read_callback_handle_blob(const uint8_t * blob, uint16_t blob_size,
     if (buffer != NULL){
         uint16_t bytes_to_copy = 0;
         if (blob_size >= offset){
-            bytes_to_copy = (uint16_t) btstack_min(blob_size - offset, buffer_size);
+            bytes_to_copy = btstack_min(blob_size - offset, buffer_size);
             (void)memcpy(buffer, &blob[offset], bytes_to_copy);
         }
         return bytes_to_copy;
@@ -1739,19 +1691,19 @@ uint16_t att_read_callback_handle_blob(const uint8_t * blob, uint16_t blob_size,
 uint16_t att_read_callback_handle_little_endian_32(uint32_t value, uint16_t offset, uint8_t * buffer, uint16_t buffer_size){
     uint8_t value_buffer[4];
     little_endian_store_32(value_buffer, 0, value);
-    return att_read_callback_handle_blob(value_buffer, (uint16_t) sizeof(value_buffer), offset, buffer, buffer_size);
+    return att_read_callback_handle_blob(value_buffer, sizeof(value_buffer), offset, buffer, buffer_size);
 }
 
 uint16_t att_read_callback_handle_little_endian_16(uint16_t value, uint16_t offset, uint8_t * buffer, uint16_t buffer_size){
     uint8_t value_buffer[2];
     little_endian_store_16(value_buffer, 0, value);
-    return att_read_callback_handle_blob(value_buffer, (uint16_t) sizeof(value_buffer), offset, buffer, buffer_size);
+    return att_read_callback_handle_blob(value_buffer, sizeof(value_buffer), offset, buffer, buffer_size);
 }
 
 uint16_t att_read_callback_handle_byte(uint8_t value, uint16_t offset, uint8_t * buffer, uint16_t buffer_size){
     uint8_t value_buffer[1];
     value_buffer[0] = value;
-    return att_read_callback_handle_blob(value_buffer, (uint16_t) sizeof(value_buffer), offset, buffer, buffer_size);
+    return att_read_callback_handle_blob(value_buffer, sizeof(value_buffer), offset, buffer, buffer_size);
 }
 
 
@@ -1892,7 +1844,7 @@ uint16_t btp_att_get_attribute_value(att_connection_t * att_connection, uint16_t
     // fetch len
     // assume: con handle not relevant here, else, it needs to get passed in
     // att_update_value_len(&it, HCI_CON_HANDLE_INVALID);
-    uint16_t bytes_to_copy = (uint16_t) btstack_min( response_buffer_size - 3, it.value_len);
+    uint16_t bytes_to_copy = btstack_min( response_buffer_size - 3, it.value_len);
     little_endian_store_16(response_buffer, pos, bytes_to_copy);
     pos += 2;
     // get value - only works for non-dynamic data

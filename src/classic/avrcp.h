@@ -58,10 +58,7 @@ extern "C" {
 
 #define AVRCP_BROWSING_ITEM_HEADER_LEN 3
 #define AVRCP_BROWSING_MAX_NUM_ATTR_IDS 8
-#define AVRCP_DISPLAYABLE_NAME_MAX_LENGTH  20
-#define AVRCP_ATTRIBUTES_MAX_NUM           10
-#define AVRCP_SEARCH_STRING_MAX_LENGTH     20
-
+    
 #define AVRCP_MAX_AV_C_MESSAGE_FRAME_SIZE 512
 
 #define AVRCP_MAX_COMMAND_PARAMETER_LENGTH 11
@@ -82,24 +79,13 @@ extern "C" {
 #define AVRCP_FEATURE_MASK_BROWSING                             0x0040u
 #define AVRCP_FEATURE_MASK_MULTIPLE_MEDIA_PLAYE_APPLICATIONS    0x0080u
 
-#define AVRCP_MAJOR_PLAYER_TYPE_FEATURE_MASK_AUDIO                       0x01u
-#define AVRCP_MAJOR_PLAYER_TYPE_FEATURE_MASK_VIDEO                       0x02u
-#define AVRCP_MAJOR_PLAYER_TYPE_FEATURE_MASK_BROADCASTING_AUDIO          0x04u
-#define AVRCP_MAJOR_PLAYER_TYPE_FEATURE_MASK_BROADCASTING_VIDEO          0x08u
-
-#define AVRCP_PLAYER_SUBTYPE_FEATURE_MASK_AUDIO_BOOK                       0x01u
-#define AVRCP_PLAYER_SUBTYPE_FEATURE_MASK_PODCAST                          0x02u
-
-#define AVRCP_PLAYER_APPLICATION_SETTING_ATTRIBUTE_MAX_NUM_VALUES      10
-#define AVRCP_PLAYER_APPLICATION_SETTING_ATTRIBUTE_MAX_STRING_SIZE     200
-    
 typedef enum {
-    AVRCP_STATUS_INVALID_COMMAND = 0,           // Sent if TG received a PDU that it did not understand.
+    AVRCP_STATUS_INVALID_COMMAND = 0,           // sent if TG received a PDU that it did not understand.
     AVRCP_STATUS_INVALID_PARAMETER,             // Sent if the TG received a PDU with a parameter ID that it did not understand, or, if there is only one parameter ID in the PDU.
-    AVRCP_STATUS_PARAMETER_CONTENT_ERROR,       // Sent if the parameter ID is understood, but content is wrong or corrupted.
-    AVRCP_STATUS_INTERNAL_ERROR,                // Sent if there are error conditions not covered by a more specific error code.
-    AVRCP_STATUS_SUCCESS,                       // Sent if the operation was successful.
-    AVRCP_STATUS_UID_CHANGED,                   // Sent if the UIDs on the device have changed.
+    AVRCP_STATUS_SPECIFIED_PARAMETER_NOT_FOUND, // sent if the parameter ID is understood, but content is wrong or corrupted.
+    AVRCP_STATUS_INTERNAL_ERROR,                // sent if there are error conditions not covered by a more specific error code.
+    AVRCP_STATUS_SUCCESS,                       // sent if the operation was successful. 
+    AVRCP_STATUS_UID_CHANGED,                   // sent if the UIDs on the device have changed.
     AVRCP_STATUS_RESERVED_6,
     AVRCP_STATUS_INVALID_DIRECTION,             // The Direction parameter is invalid. Valid for command: Change Path
     AVRCP_STATUS_NOT_A_DIRECTORY,               // The UID provided does not refer to a folder item. Valid for command: Change Path
@@ -156,20 +142,14 @@ typedef enum {
     AVRCP_MEDIA_ATTR_GENRE,
     AVRCP_MEDIA_ATTR_SONG_LENGTH_MS,
     AVRCP_MEDIA_ATTR_DEFAULT_COVER_ART,
-    AVRCP_MEDIA_ATTR_NUM = 0x0009,
+    AVRCP_MEDIA_ATTR_RESERVED = 0x0009,
     AVRCP_MEDIA_ATTR_NONE = 0x7FFF
 } avrcp_media_attribute_id_t;
 
 typedef enum {
     AVRCP_PDU_ID_GET_CAPABILITIES = 0x10,
-    AVRCP_PDU_ID_LIST_PLAYER_APPLICATION_SETTING_ATTRIBUTES, 
-    AVRCP_PDU_ID_LIST_PLAYER_APPLICATION_SETTING_VALUES,
     AVRCP_PDU_ID_GET_CURRENT_PLAYER_APPLICATION_SETTING_VALUE = 0x13,
     AVRCP_PDU_ID_SET_PLAYER_APPLICATION_SETTING_VALUE = 0x14,
-    AVRCP_PDU_ID_GET_PLAYER_APPLICATION_SETTING_ATTRIBUTE_TEXT,
-    AVRCP_PDU_ID_GET_PLAYER_APPLICATION_SETTING_VALUE_TEXT,
-    AVRCP_PDU_ID_INFORM_DISPLAYABLE_CHARACTERSET,
-    AVRCP_PDU_ID_INFORM_BATTERY_STATUS_OF_CT,
     AVRCP_PDU_ID_GET_ELEMENT_ATTRIBUTES = 0x20,
     AVRCP_PDU_ID_GET_PLAY_STATUS = 0x30,
     AVRCP_PDU_ID_REGISTER_NOTIFICATION = 0x31,
@@ -271,23 +251,17 @@ typedef enum {
 } avrcp_command_opcode_t;
 
 // See "AVC-Panel Subunit.pdf", Chapter 9.4 "PASS THROUGH control command"
-// Using subset defined in "AVRCP_v1.6.3.pdf", Chapter 4.6.1 "Support Level in TG"
-
+// Using subset defined in "AVRCP_v1.5.pdf", Chapter 4.6.1 "Support Level in TG"
 typedef enum {
-    AVRCP_GROUP_OPERATION_ID_GOTO_NEXT     = 0x00,
-    AVRCP_GROUP_OPERATION_ID_GOTO_PREVIOUS = 0x01
-} avrcp_group_operation_id_t;
-
-typedef enum {
-    AVRCP_OPERATION_ID_SELECT = 0x00, // Next Group
-    AVRCP_OPERATION_ID_UP = 0x01,     // Previous Group
+    AVRCP_OPERATION_ID_SELECT = 0x00,
+    AVRCP_OPERATION_ID_UP = 0x01,
     AVRCP_OPERATION_ID_DOWN = 0x02,
     AVRCP_OPERATION_ID_LEFT = 0x03,
     AVRCP_OPERATION_ID_RIGHT = 0x04,
     AVRCP_OPERATION_ID_RIGHT_UP = 0x05,
     AVRCP_OPERATION_ID_RIGHT_DOWN = 0x06,
     AVRCP_OPERATION_ID_LEFT_UP = 0x07,
-    AVRCP_OPERATION_ID_LEFT_DOWN = 0x08,
+    AVRCP_OPERATION_ID_LEFT_DOWN = 0x07,
     AVRCP_OPERATION_ID_ROOT_MENU = 0x09,
     AVRCP_OPERATION_ID_SETUP_MENU = 0x0A,
     AVRCP_OPERATION_ID_CONTENTS_MENU = 0x0B,
@@ -347,11 +321,7 @@ typedef enum {
     AVRCP_OPERATION_ID_F3 = 0x73,
     AVRCP_OPERATION_ID_F4 = 0x74,
     AVRCP_OPERATION_ID_F5 = 0x75,
-    AVRCP_OPERATION_ID_RESERVED_6 = 0x76,
-
-    AVRCP_OPERATION_ID_VENDOR_UNIQUE = 0x7E,
-    AVRCP_OPERATION_ID_RESERVED_7 = 0x7F,
-    AVRCP_OPERATION_ID_INVALID = 0xFF
+    AVRCP_OPERATION_ID_RESERVED_6 = 0x76
 } avrcp_operation_id_t;
 
 typedef enum{
@@ -377,14 +347,12 @@ typedef enum {
     AVRCP_SYSTEM_STATUS_UNPLUGGED
 } avrcp_system_status_t;
 
-
 typedef enum {
     AVRCP_PLAYER_APPLICATION_SETTING_ATTRIBUTE_ID_ILLEGAL = 0x00,       // ValueIDs with descriptions:
     AVRCP_PLAYER_APPLICATION_SETTING_ATTRIBUTE_ID_EQUALIZER_STATUS,     // 1 - off, 2 - on
     AVRCP_PLAYER_APPLICATION_SETTING_ATTRIBUTE_ID_REPEAT_MODE_STATUS,   // 1 - off, 2 - single track repeat, 3 - all tracks repeat, 4 - group repeat
     AVRCP_PLAYER_APPLICATION_SETTING_ATTRIBUTE_ID_SHUFFLE_STATUS,       // 1 - off, 2 - all tracks shuffle , 3 - group shuffle
-    AVRCP_PLAYER_APPLICATION_SETTING_ATTRIBUTE_ID_SCAN_STATUS,          // 1 - off, 2 - all tracks scan    , 3 - group scan
-    AVRCP_PLAYER_APPLICATION_SETTING_ATTRIBUTE_ID_RFU
+    AVRCP_PLAYER_APPLICATION_SETTING_ATTRIBUTE_ID_SCAN_STATUS           // 1 - off, 2 - all tracks scan    , 3 - group scan
 } avrcp_player_application_setting_attribute_id_t;
 
 typedef enum {
@@ -400,7 +368,6 @@ typedef enum {
     AVCTP_W4_STOP,
     AVCTP_W2_SEND_COMMAND,
     AVCTP_W2_SEND_RESPONSE,
-    AVCTP_W2_CHECK_DATABASE,
     AVCTP_W2_RECEIVE_PRESS_RESPONSE,
     AVCTP_W2_RECEIVE_RESPONSE,
     AVCTP_W2_SEND_GET_ELEMENT_ATTRIBUTES_REQUEST,
@@ -411,6 +378,17 @@ typedef struct {
     uint16_t len;
     uint8_t  * value;
 } avrcp_now_playing_info_item_t;
+
+typedef struct {
+    uint8_t track_id[8];
+    uint16_t track_nr;
+    char * title;
+    char * artist;
+    char * album;
+    char * genre;
+    uint32_t song_length_ms;
+    uint32_t song_position_ms;
+} avrcp_track_t;
 
 typedef enum {
     AVRCP_PARSER_GET_ATTRIBUTE_HEADER = 0,       // 8 bytes
@@ -427,8 +405,7 @@ typedef enum {
     AVRCP_SHUFFLE_MODE_INVALID,
     AVRCP_SHUFFLE_MODE_OFF,
     AVRCP_SHUFFLE_MODE_ALL_TRACKS,
-    AVRCP_SHUFFLE_MODE_GROUP,
-    AVRCP_SHUFFLE_MODE_RFU
+    AVRCP_SHUFFLE_MODE_GROUP
 } avrcp_shuffle_mode_t;
 
 typedef enum {
@@ -436,24 +413,8 @@ typedef enum {
     AVRCP_REPEAT_MODE_OFF,
     AVRCP_REPEAT_MODE_SINGLE_TRACK,
     AVRCP_REPEAT_MODE_ALL_TRACKS,
-    AVRCP_REPEAT_MODE_GROUP,
-    AVRCP_REPEAT_MODE_RFU
+    AVRCP_REPEAT_MODE_GROUP
 } avrcp_repeat_mode_t;
-
-typedef enum {
-    AVRCP_EQUALIZER_MODE_INVALID,
-    AVRCP_EQUALIZER_MODE_OFF,
-    AVRCP_EQUALIZER_MODE_ON,
-    AVRCP_EQUALIZER_MODE_RFU
-} avrcp_equalizer_mode_t;
-
-typedef enum {
-    AVRCP_SCAN_MODE_INVALID,
-    AVRCP_SCAN_MODE_OFF,
-    AVRCP_SCAN_MODE_ALL_TRACKS,
-    AVRCP_SCAN_MODE_GROUP,
-    AVRCP_SCAN_MODE_RFU
-} avrcp_scan_mode_t;
 
 typedef enum {
     RFC2978_CHARSET_MIB_UTF8 = 106
@@ -463,117 +424,15 @@ typedef enum {
     AVRCP_BROWSING_MEDIA_PLAYER_LIST = 0x00,
     AVRCP_BROWSING_MEDIA_PLAYER_VIRTUAL_FILESYSTEM,
     AVRCP_BROWSING_SEARCH,
-    AVRCP_BROWSING_NOW_PLAYING,
-    AVRCP_BROWSING_RFU
+    AVRCP_BROWSING_NOW_PLAYING
 } avrcp_browsing_scope_t;
 
-typedef enum {
-    AVRCP_BROWSING_DIRECTION_FOLDER_UP = 0x00,
-    AVRCP_BROWSING_DIRECTION_FOLDER_DOWN,
-    AVRCP_BROWSING_DIRECTION_FOLDER_RFU
-} avrcp_browsing_direction_t;
-
-typedef enum {
+typedef enum{
     AVRCP_REMOTE_CAPABILITIES_NONE = 0,
     AVRCP_REMOTE_CAPABILITIES_W4_QUERY_RESULT,
     AVRCP_REMOTE_CAPABILITIES_KNOWN
 } avrcp_remote_capabilities_state_t;
 
-typedef enum {
-    AVRCP_BROWSING_MEDIA_PLAYER_ITEM = 0x01,
-    AVRCP_BROWSING_FOLDER_ITEM,
-    AVRCP_BROWSING_MEDIA_ELEMENT_ITEM,
-    AVRCP_BROWSING_MEDIA_ROOT_FOLDER,
-    AVRCP_BROWSING_MEDIA_ELEMENT_ITEM_ATTRIBUTE
-} avrcp_browsing_item_type_t;
-
-typedef enum {
-    AVRCP_BROWSING_MEDIA_PLAYER_MAJOR_TYPE_AUDIO = 1,
-    AVRCP_BROWSING_MEDIA_PLAYER_MAJOR_TYPE_VIDEO = 2,
-    AVRCP_BROWSING_MEDIA_PLAYER_MAJOR_TYPE_BROADCASTING_AUDIO = 4,
-    AVRCP_BROWSING_MEDIA_PLAYER_MAJOR_TYPE_BROADCASTING_VIDEO = 8
-} avrcp_browsing_media_player_major_type_t;
-
-typedef enum {
-    AVRCP_BROWSING_MEDIA_PLAYER_SUBTYPE_AUDIO_BOOK = 1,
-    AVRCP_BROWSING_MEDIA_PLAYER_SUBTYPE_POADCAST   = 2
-} avrcp_browsing_media_player_subtype_t;
-
-typedef enum {
-    AVRCP_BROWSING_MEDIA_PLAYER_STATUS_STOPPED = 0,
-    AVRCP_BROWSING_MEDIA_PLAYER_STATUS_PLAYING,
-    AVRCP_BROWSING_MEDIA_PLAYER_STATUS_PAUSED,
-    AVRCP_BROWSING_MEDIA_PLAYER_STATUS_FWD_SEEK,
-    AVRCP_BROWSING_MEDIA_PLAYER_STATUS_REV_SEEK,
-    AVRCP_BROWSING_MEDIA_PLAYER_STATUS_ERROR = 0xFF
-} avrcp_browsing_media_player_status_t;
-
-typedef enum {
-    AVRCP_BROWSING_FOLDER_TYPE_MIXED = 0x00,
-    AVRCP_BROWSING_FOLDER_TYPE_TITLES,
-    AVRCP_BROWSING_FOLDER_TYPE_ALBUMS,
-    AVRCP_BROWSING_FOLDER_TYPE_ARTISTS,
-    AVRCP_BROWSING_FOLDER_TYPE_GENRES,
-    AVRCP_BROWSING_FOLDER_TYPE_PLAYLISTS,
-    AVRCP_BROWSING_FOLDER_TYPE_YEARS
-} avrcp_browsing_folder_type_t;
-
-typedef enum {
-    AVRCP_BROWSING_MEDIA_TYPE_AUDIO = 0x00,
-    AVRCP_BROWSING_MEDIA_TYPE_VIDEO
-} avrcp_browsing_media_type_t;
-
-typedef struct {
-    avrcp_media_attribute_id_t attribute_id; // 4B
-    uint16_t characterset;   // RFC2978_CHARSET_MIB_UTF8
-    uint16_t displayable_name_len;
-    char displayable_name[AVRCP_DISPLAYABLE_NAME_MAX_LENGTH];
-} avrcp_browsing_attribute_t ;
-
-typedef struct {
-    uint16_t player_id;
-    uint8_t major_player_type_bitmap;
-    uint32_t player_subtype_bitmap;
-    avrcp_playback_status_t play_status;
-    uint8_t feature_bitmap[16];
-    uint16_t characterset;   // RFC2978_CHARSET_MIB_UTF8
-    uint16_t displayable_name_len;
-    char displayable_name[AVRCP_DISPLAYABLE_NAME_MAX_LENGTH];
-} avrcp_browsing_media_player_t;
-
-typedef struct {
-    // avrcp_browsing_item_type_t item_type = AVRCP_BROWSING_Item_type_Media_Player;
-    // uint16_t item_length = 28 + displayable_name_len;
-    uint8_t id[8];
-    avrcp_browsing_folder_type_t type;
-    uint8_t is_playable;
-    uint16_t characterset;   // RFC2978_CHARSET_MIB_UTF8
-    uint16_t displayable_name_len;
-    char displayable_name[AVRCP_DISPLAYABLE_NAME_MAX_LENGTH];
-} avrcp_browsing_folder_item_t;
-
-typedef struct {
-    // avrcp_browsing_item_type_t item_type = AVRCP_BROWSING_Item_type_Media_Player;
-    // uint16_t item_length = 28 + displayable_name_len;
-    uint8_t id[8];
-    avrcp_browsing_media_type_t type;
-    uint16_t characterset;   // RFC2978_CHARSET_MIB_UTF8
-    uint16_t displayable_name_len;
-    char displayable_name[AVRCP_DISPLAYABLE_NAME_MAX_LENGTH];
-    uint8_t num_attributes;
-    avrcp_browsing_attribute_t attributes[AVRCP_ATTRIBUTES_MAX_NUM];
-} avrcp_browsing_media_element_item_t;
-
-typedef struct {
-    uint8_t track_id[8];
-    uint16_t track_nr;
-    char * title;
-    char * artist;
-    char * album;
-    char * genre;
-    uint32_t song_length_ms;
-    uint32_t song_position_ms;
-} avrcp_track_t;
 
 // BROWSING 
 typedef struct {
@@ -595,7 +454,7 @@ typedef struct {
     uint16_t browsed_player_id;
 
     avrcp_browsing_scope_t  scope;
-    uint8_t  item_uid[8]; // or media element
+    uint8_t  folder_uid[8]; // or media element
     uint16_t uid_counter;
 
     // get folder item
@@ -615,12 +474,7 @@ typedef struct {
     uint16_t search_str_len;
     uint8_t  search_str[20];
     uint8_t  search;
-
-    // search str
-    uint16_t target_search_str_len;
-    char *  target_search_str;
-    uint16_t target_search_characterset;
-
+    
     // get_item_attributes
     uint8_t  get_total_nr_items;
     avrcp_browsing_scope_t get_total_nr_items_scope;
@@ -647,8 +501,8 @@ typedef struct {
     avrcp_subunit_type_t subunit_type;
     avrcp_subunit_id_t   subunit_id;
     avrcp_packet_type_t  packet_type;
-    uint8_t cmd_operands[400];
-    uint16_t cmd_operands_length;
+    uint8_t cmd_operands[200];
+    uint8_t cmd_operands_length;
 
     bool incoming_declined;
 } avrcp_browsing_connection_t;
@@ -693,6 +547,7 @@ typedef struct {
     avctp_packet_type_t    avctp_packet_type;
     // AVRCP header
     avrcp_packet_type_t    avrcp_packet_type;
+    uint16_t               avrcp_frame_bytes_sent;
     avrcp_subunit_type_t   subunit_type;
     avrcp_subunit_id_t     subunit_id;
     uint32_t               company_id;
@@ -737,9 +592,6 @@ typedef struct {
     bool     controller_press_and_hold_cmd_active;
     bool     controller_press_and_hold_cmd_release;
 
-    btstack_timer_source_t controller_response_cmd_timer;
-    uint8_t response_transaction_id;
-
     avrcp_remote_capabilities_state_t remote_capabilities_state;
     bool     controller_notifications_supported_by_target_suppress_emit_result;
     uint16_t controller_initial_status_reported;
@@ -768,12 +620,9 @@ typedef struct {
     const uint32_t * target_supported_companies;
     uint8_t          target_supported_companies_num;
 
-
     bool     target_addressed_player_changed;
     uint16_t target_addressed_player_id;
     uint16_t target_uid_counter;
-    bool     target_uids_changed;
-    avrcp_browsing_scope_t target_scope;
 
     bool     target_accept_response;
 

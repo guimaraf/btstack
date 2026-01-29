@@ -48,9 +48,8 @@
 
 static modcontext mod_context;
 
-static void audio_playback(int16_t * buffer, uint16_t num_samples, const btstack_audio_context_t * context){
-    UNUSED(context);
-	hxcmod_fillbuffer(&mod_context, buffer, num_samples, NULL);
+static void audio_playback(int16_t * buffer, uint16_t num_samples){
+	hxcmod_fillbuffer(&mod_context, (unsigned short *) buffer, num_samples, NULL);
 }
 
 int btstack_main(int argc, const char * argv[]);
@@ -62,8 +61,8 @@ int btstack_main(int argc, const char * argv[]){
 	int hxcmod_initialized = hxcmod_init(&mod_context);
     if (!hxcmod_initialized) return 10;
 
-    hxcmod_setcfg(&mod_context, 44100, 1, 1);
-    hxcmod_load(&mod_context, (void*)mod_titles[MOD_TITLE_DEFAULT].data, mod_titles[MOD_TITLE_DEFAULT].len);
+    hxcmod_setcfg(&mod_context, 44100, 16, 1, 1, 1);
+    hxcmod_load(&mod_context, (void *) &mod_data, mod_len);
 
     // setup audio playback
     const btstack_audio_sink_t * audio = btstack_audio_sink_get_instance();

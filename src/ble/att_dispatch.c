@@ -52,7 +52,7 @@
 #define ATT_CLIENT 1u
 #define ATT_MAX    2u
 
-static struct {
+struct {
     btstack_packet_handler_t packet_handler;
     bool                  waiting_for_can_send;
 } subscriptions[ATT_MAX];
@@ -158,6 +158,8 @@ static void att_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *p
     hci_con_handle_t con_handle;
     bool outgoing_active;
     uint8_t index;
+#endif
+#if defined(ENABLE_GATT_OVER_CLASSIC) || defined(ENABLE_GATT_OVER_EATT)
     bd_addr_t address;
     uint16_t l2cap_cid;
     uint8_t  status;

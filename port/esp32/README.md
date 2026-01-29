@@ -1,38 +1,44 @@
 # BTstack Port for the Espressif ESP32 Platform
 
+Status: Basic port incl. all examples. BTstack runs on dedicated FreeRTOS thread. Multi threading (calling BTstack functions from a different thread) is not supported.
+
 ## Setup
 
 - Follow [Espressif IoT Development Framework (ESP-IDF) setup](https://github.com/espressif/esp-idf) to install XTensa toolchain and the ESP-IDF. 
-- Currently used for testing: ESP-IDF v5.4
+- Currently used for testing: ESP-IDF v4.4 or v5.0
 
 ## Usage
 
-Please note: Since BTstack v1.7, BTstack sources are not and should not be copied into `${ESP_IDF}/components` folder. 
-Please remove `${ESP_IDF}/components/btstack`
+In port/esp32, run
 
-The current build system allows to build all provided examples for all supported ESP32 versions.
-By default, the 'gatt_counter' example will be build for the original ESP32.
+	./integrate_btstack.py
 
-To select example 'gatt_streamer_server' and the ESP32-C3:
+The script will copy parts of the BTstack tree into the ESP-IDF as $IDF_PATH/components/btstack and then create project folders for all examples.
 
-   EXAMPLE='gatt_streamer_server' idf.py set-target esp32c3
+Each example project folder, e.g. port/esp32/examples/spp_and_le_counter, contains a CMake project file. Please run the `integrate_btstack.py` 
+command again after updating the BTstack tree (e.g. by git pull) to also update the copy in the ESP-IDF.
 
-To get a list of valid targets:
+The examples are configure for the original ESP32. IF you want to use the newer ESP32-C3 or ESP32-S3 - both only support Bluetooth LE - you need to:
+1. set target:
 
-   idf.py set-target
+    `idf.py set-target esp32c3`
 
-To get a list of BTstack examples:
+    or 
 
-    idf.py list-examples
+    `idf.py set-target esp32s3`
 
+2. re-enable Bluetooth Controller via menuconfig
+   
+   1. `idf.py menuconfig`
+   2. select `Component Config`
+   3. select `Bluetooth` and enable
+   4. select `Bluetooth Host`
+   5. select `Controller Only`
+   6. exit and save config
 
-To change the example:
+To compile an example, run:
 
-    idf.py fullclean
-
-To compile the example, run:
-
-    idf.py build
+    idf.py
 
 
 To upload the binary to your device, run:
@@ -46,19 +52,9 @@ To get debug output, run:
 
 You can quit the monitor with CTRL-].
 
+## Configuration
 
-### Configuration
-
-The configuration file 'btstack_config.h' is provided by the main project via the `btstack_config` component in
-`components/btstack_config/btstack_config.h`
-
-### Integration into custom projects
-
-The esp32 port (this folder) contains the components 'btstack' and 'btstack_config'. 
-It can be compiled out-of-tree by setting the environment variable BTSTACK_ROOT, example:
-
-    BTSTACK_ROOT=/path/to/btstack EXAMPLE='gatt_streamer_server' idf.py build
-
+The sdkconfig of the example template disables the original Bluedroid stack by disabling the CONFIG_BLUEDROID_ENABLED kconfig option.
 
 ## Limitations
 
@@ -68,12 +64,10 @@ There are different issues in the Bluetooth Controller of the ESP32 that is prov
 
 ### Audio playback
 
-Audio playback is implemented by `btstack_audio_esp32_v4.c` resp. `btstack_audio_esp32_v5.c` and supports generic I2S codecs as well as the ES8388 on the 
+Audio playback is implemented by `btstack_audio_esp32.c` and supports generic I2S codecs as well as the ES8388 on the 
 [ESP32 LyraT v4.3](https://docs.espressif.com/projects/esp-adf/en/latest/design-guide/board-esp32-lyrat-v4.3.html) devkit.
 
-Due to the various ESP32 variants, please double check the I2S Configuration in the mentioned audio file and verify that the correct menuconfig options are set.
-
-For a generic ESP32, the first I2S interface is used with with the following pin out:
+It uses the first I2S interface with the following pin out:
 
 ESP32 pin | I2S Pin
 ----------|---------
@@ -86,8 +80,7 @@ GPIO35    | DIN
 If support for the LyraT v4.3 is enabled via menuconfig - Example Board Configuration --> ESP32 board --> ESP32-LyraT V4.3, CONFIG_ESP_LYRAT_V4_3_BOARD gets defined and the ES8388 will be configured as well.
 
 We've also used the MAX98357A on the [Adafruit breakout board](https://www.adafruit.com/product/3006). 
-The simplest audio example is the `mod_player`, which plays back an 8 kB sound file and the a2dp_sink_demo that implements a basic Bluetooth loudspeaker.
-You can test the audio input with the `audio_duplex` example.
+The simplest audio example is the mod_player, which plays back an 8 kB sound file and the a2dp_sink_demo that implements a basic Bluetooth loudspeaker.
 
 ## ESP32 printf/log
 
@@ -98,6 +91,11 @@ buffer size - or any combination of these. :)
 ### Multi-Threading
 
 BTstack is not thread-safe, but you're using a multi-threading OS. Any function that is called from BTstack, e.g. packet handlers, can directly call into BTstack without issues. For other situations, you need to provide some general 'do BTstack tasks' function and trigger BTstack to execute it on its own thread.
-
 To call a function from the BTstack thread, you can use *btstack_run_loop_execute_on_main_thread* allows to directly schedule a function callback, 
-i.e. 'do BTstack tasks' function, from the BTstack thread. The called function then checks for pending BTstack tasks and executes them.
+i.e. 'do BTstack tasks' function, from the BTstack thread. The called function should check if there are any pending BTstack tasks and execute them.
+
+We're considering different options to make BTstack thread-safe, but for now, please use one of the suggested options.
+
+### Acknowledgments
+
+First HCI Reset was sent to Bluetooth chipset by [@mattkelly](https://github.com/mattkelly)

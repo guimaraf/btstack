@@ -32,113 +32,44 @@
  */
 static int resolve_gain_offset(enum lc3_srate sr, int nbytes)
 {
-    int sr_ind = lc3_hr(sr) ? 4 + (sr - LC3_SRATE_48K_HR) : sr;
-
-    int g_off = (nbytes * 8) / (10 * (1 + sr_ind));
-    return LC3_MIN(sr >= LC3_SRATE_96K_HR ? 181 : 255,
-        105 + 5*(1 + sr_ind) + LC3_MIN(g_off, 115));
-}
-
-/**
- * Unquantize gain
- * g_int           Quantization gain value
- * return          Unquantized gain value
- */
-static float unquantize_gain(int g_int)
-{
-    /* Unquantization gain table :
-     * G[i] = 10 ^ (i / 28) , i = [0..27] */
-
-    static const float iq_table[] = {
-        1.00000000e+00, 1.08571112e+00, 1.17876863e+00, 1.27980221e+00,
-        1.38949549e+00, 1.50859071e+00, 1.63789371e+00, 1.77827941e+00,
-        1.93069773e+00, 2.09617999e+00, 2.27584593e+00, 2.47091123e+00,
-        2.68269580e+00, 2.91263265e+00, 3.16227766e+00, 3.43332002e+00,
-        3.72759372e+00, 4.04708995e+00, 4.39397056e+00, 4.77058270e+00,
-        5.17947468e+00, 5.62341325e+00, 6.10540230e+00, 6.62870316e+00,
-        7.19685673e+00, 7.81370738e+00, 8.48342898e+00, 9.21055318e+00
-    };
-
-    float g = 1.f;
-
-    for ( ; g_int <   0; g_int += 28, g *= 0.1f);
-    for ( ; g_int >= 28; g_int -= 28, g *= 10.f);
-
-    return g * iq_table[g_int];
+    int g_off = (nbytes * 8) / (10 * (1 + sr));
+    return 105 + 5*(1 + sr) + LC3_MIN(g_off, 115);
 }
 
 /**
  * Global Gain Estimation
  * dt, sr          Duration and samplerate of the frame
  * x               Spectral coefficients
- * nbytes          Size of the frame
  * nbits_budget    Number of bits available coding the spectrum
  * nbits_off       Offset on the available bits, temporarily smoothed
  * g_off           Gain index offset
  * reset_off       Return True when the nbits_off must be reset
- * g_min           Return lower bound of quantized gain value
  * return          The quantized gain value
  */
 LC3_HOT static int estimate_gain(
     enum lc3_dt dt, enum lc3_srate sr, const float *x,
-    int nbytes, int nbits_budget, float nbits_off, int g_off,
-    bool *reset_off, int *g_min)
+    int nbits_budget, float nbits_off, int g_off, bool *reset_off)
 {
-    int n4 = lc3_ne(dt, sr) / 4;
-    union { float f; int32_t q16; } e[LC3_MAX_NE / 4];
-
-    /* --- Signal adaptative noise floor --- */
-
-    int reg_bits = 0;
-    float low_bits = 0;
-
-    if (lc3_hr(sr)) {
-        int reg_c = (const int [LC3_NUM_DT][LC3_NUM_SRATE - LC3_SRATE_48K_HR]){
-            [LC3_DT_2M5] = { -6, -6 },
-            [LC3_DT_5M ] = {  0,  0 },
-            [LC3_DT_10M] = {  2,  5 }
-        }[dt][sr - LC3_SRATE_48K_HR];
-
-        reg_bits = (8*nbytes * 4) / (125 * (1 + dt));
-        reg_bits = LC3_CLIP(reg_bits + reg_c, 6, 23);
-
-        float m0 = 1e-5f, m1 = 1e-5f, k = 0;
-
-        for (int i = 0; i < n4; i++) {
-            m0 += fabsf(x[4*i + 0]),  m1 += fabsf(x[4*i + 0]) * k++;
-            m0 += fabsf(x[4*i + 1]),  m1 += fabsf(x[4*i + 1]) * k++;
-            m0 += fabsf(x[4*i + 2]),  m1 += fabsf(x[4*i + 2]) * k++;
-            m0 += fabsf(x[4*i + 3]),  m1 += fabsf(x[4*i + 3]) * k++;
-        }
-
-        int m = roundf((1.6f * m0) / ((1 + dt) * m1));
-        low_bits = 8 - LC3_MIN(m, 8);
-    }
+    int ne = LC3_NE(dt, sr) >> 2;
+    int e[ne];
 
     /* --- Energy (dB) by 4 MDCT blocks --- */
 
     float x2_max = 0;
 
-    for (int i = 0; i < n4; i++) {
-        float x0 = x[4*i + 0] * x[4*i + 0];
-        float x1 = x[4*i + 1] * x[4*i + 1];
-        float x2 = x[4*i + 2] * x[4*i + 2];
-        float x3 = x[4*i + 3] * x[4*i + 3];
+    for (int i = 0; i < ne; i++, x += 4) {
+        float x0 = x[0] * x[0];
+        float x1 = x[1] * x[1];
+        float x2 = x[2] * x[2];
+        float x3 = x[3] * x[3];
 
         x2_max = fmaxf(x2_max, x0);
         x2_max = fmaxf(x2_max, x1);
         x2_max = fmaxf(x2_max, x2);
         x2_max = fmaxf(x2_max, x3);
 
-        e[i].f = x0 + x1 + x2 + x3;
+        e[i] = fast_db_q16(fmaxf(x0 + x1 + x2 + x3, 1e-10f));
     }
-
-    float x_max = sqrtf(x2_max);
-    float nf = lc3_hr(sr) ?
-        lc3_ldexpf(x_max, -reg_bits) * lc3_exp2f(-low_bits) : 0;
-
-    for (int i = 0; i < n4; i++)
-        e[i].q16 = lc3_db_q16(fmaxf(e[i].f + nf, 1e-10f));
 
     /* --- Determine gain index --- */
 
@@ -149,14 +80,14 @@ LC3_HOT static int estimate_gain(
     const int k_2u7 = 2.7f * 0x1p16f + 0.5f;
     const int k_1u4 = 1.4f * 0x1p16f + 0.5f;
 
-    for (int i = 128, j, j0 = n4-1, j1 ; i > 0; i >>= 1) {
+    for (int i = 128, j, j0 = ne-1, j1 ; i > 0; i >>= 1) {
         int gn = (g_int - i) * k_20_28;
         int v = 0;
 
-        for (j = j0; j >= 0 && e[j].q16 < gn; j--);
+        for (j = j0; j >= 0 && e[j] < gn; j--);
 
         for (j1 = j; j >= 0; j--) {
-            int e_diff = e[j].q16 - gn;
+            int e_diff = e[j] - gn;
 
             v += e_diff < 0 ? k_2u7 :
                  e_diff < 43 << 16 ?   e_diff + ( 7 << 16)
@@ -171,39 +102,32 @@ LC3_HOT static int estimate_gain(
 
     /* --- Limit gain index --- */
 
-    float x_lim = lc3_hr(sr) ? 0x7fffp8f : 0x7fffp0f;
+    int g_min = x2_max == 0 ? -g_off :
+        ceilf(28 * log10f(sqrtf(x2_max) / (32768 - 0.375f)));
 
-    *g_min = 255 - g_off;
-    for (int i = 128 ; i > 0; i >>= 1)
-        if (x_lim * unquantize_gain(*g_min - i) > x_max)
-            *g_min -= i;
-
-    *reset_off = g_int < *g_min || x_max == 0;
+    *reset_off = g_int < g_min || x2_max == 0;
     if (*reset_off)
-        g_int = *g_min;
+        g_int = g_min;
 
     return g_int;
 }
 
 /**
  * Global Gain Adjustment
- * dt, sr          Duration and samplerate of the frame
+ * sr              Samplerate of the frame
  * g_idx           The estimated quantized gain index
  * nbits           Computed number of bits coding the spectrum
  * nbits_budget    Number of bits available for coding the spectrum
- * g_idx_min       Minimum gain index value
  * return          Gain adjust value (-1 to 2)
  */
 LC3_HOT static int adjust_gain(
-    enum lc3_dt dt, enum lc3_srate sr,
-    int g_idx, int nbits, int nbits_budget, int g_idx_min)
+    enum lc3_srate sr, int g_idx, int nbits, int nbits_budget)
 {
     /* --- Compute delta threshold --- */
 
     const int *t = (const int [LC3_NUM_SRATE][3]){
         {  80,  500,  850 }, { 230, 1025, 1700 }, { 380, 1550, 2550 },
-        { 530, 2075, 3400 }, { 680, 2600, 4250 },
-        { 680, 2600, 4250 }, { 830, 3125, 5100 }
+        { 530, 2075, 3400 }, { 680, 2600, 4250 }
     }[sr];
 
     int delta, den = 48;
@@ -224,21 +148,50 @@ LC3_HOT static int adjust_gain(
 
     /* --- Adjust gain --- */
 
-    if (lc3_hr(sr) && nbits > nbits_budget) {
-        int factor = 1 + (dt <= LC3_DT_5M) +
-            (dt <= LC3_DT_2M5) * (1 + (nbits >= 520));
+    if (nbits < nbits_budget - (delta + 2))
+        return -(g_idx > 0);
 
-        int g_incr = factor + (factor * (nbits - nbits_budget)) / delta;
-        return LC3_MIN(g_idx + g_incr, 255) - g_idx;
-    }
-
-    if (!lc3_hr(sr) && nbits < nbits_budget - (delta + 2))
-        return -(g_idx > g_idx_min);
-
-    if (!lc3_hr(sr) && nbits > nbits_budget)
+    if (nbits > nbits_budget)
         return (g_idx < 255) + (g_idx < 254 && nbits >= nbits_budget + delta);
 
     return 0;
+}
+
+/**
+ * Unquantize gain
+ * g_int           Quantization gain value
+ * return          Unquantized gain value
+ */
+static float unquantize_gain(int g_int)
+{
+    /* Unquantization gain table :
+     * G[i] = 10 ^ (i / 28) , i = [0..64] */
+
+    static const float iq_table[] = {
+        1.00000000e+00, 1.08571112e+00, 1.17876863e+00, 1.27980221e+00,
+        1.38949549e+00, 1.50859071e+00, 1.63789371e+00, 1.77827941e+00,
+        1.93069773e+00, 2.09617999e+00, 2.27584593e+00, 2.47091123e+00,
+        2.68269580e+00, 2.91263265e+00, 3.16227766e+00, 3.43332002e+00,
+        3.72759372e+00, 4.04708995e+00, 4.39397056e+00, 4.77058270e+00,
+        5.17947468e+00, 5.62341325e+00, 6.10540230e+00, 6.62870316e+00,
+        7.19685673e+00, 7.81370738e+00, 8.48342898e+00, 9.21055318e+00,
+        1.00000000e+01, 1.08571112e+01, 1.17876863e+01, 1.27980221e+01,
+        1.38949549e+01, 1.50859071e+01, 1.63789371e+01, 1.77827941e+01,
+        1.93069773e+01, 2.09617999e+01, 2.27584593e+01, 2.47091123e+01,
+        2.68269580e+01, 2.91263265e+01, 3.16227766e+01, 3.43332002e+01,
+        3.72759372e+01, 4.04708995e+01, 4.39397056e+01, 4.77058270e+01,
+        5.17947468e+01, 5.62341325e+01, 6.10540230e+01, 6.62870316e+01,
+        7.19685673e+01, 7.81370738e+01, 8.48342898e+01, 9.21055318e+01,
+        1.00000000e+02, 1.08571112e+02, 1.17876863e+02, 1.27980221e+02,
+        1.38949549e+02, 1.50859071e+02, 1.63789371e+02, 1.77827941e+02,
+        1.93069773e+02
+    };
+
+    float g = iq_table[LC3_ABS(g_int) & 0x3f];
+    for(int n64 = LC3_ABS(g_int) >> 6; n64--; )
+        g *= iq_table[64];
+
+    return g_int >= 0 ? g : 1 / g;
 }
 
 /**
@@ -246,24 +199,33 @@ LC3_HOT static int adjust_gain(
  * dt, sr          Duration and samplerate of the frame
  * g_int           Quantization gain value
  * x               Spectral coefficients, scaled as output
- * n               Return count of significants
+ * xq, nq          Output spectral quantized coefficients, and count
+ *
+ * The spectral coefficients `xq` are stored as :
+ *   b0       0:positive or zero  1:negative
+ *   b15..b1  Absolute value
  */
-LC3_HOT static void quantize(
-    enum lc3_dt dt, enum lc3_srate sr, int g_int, float *x, int *n)
+LC3_HOT static void quantize(enum lc3_dt dt, enum lc3_srate sr,
+    int g_int, float *x, uint16_t *xq, int *nq)
 {
-    float g_inv = unquantize_gain(-g_int);
-    int ne = lc3_ne(dt, sr);
+    float g_inv = 1 / unquantize_gain(g_int);
+    int ne = LC3_NE(dt, sr);
 
-    *n = ne;
+    *nq = ne;
 
     for (int i = 0; i < ne; i += 2) {
-        float xq_min = lc3_hr(sr) ? 0.5f : 10.f/16;
+        uint16_t x0, x1;
 
         x[i+0] *= g_inv;
         x[i+1] *= g_inv;
 
-        *n = fabsf(x[i+0]) >= xq_min ||
-             fabsf(x[i+1]) >= xq_min   ? ne : *n - 2;
+        x0 = fminf(fabsf(x[i+0]) + 6.f/16, INT16_MAX);
+        x1 = fminf(fabsf(x[i+1]) + 6.f/16, INT16_MAX);
+
+        xq[i+0] = (x0 << 1) + ((x0 > 0) & (x[i+0] < 0));
+        xq[i+1] = (x1 << 1) + ((x1 > 0) & (x[i+1] < 0));
+
+        *nq = x0 || x1 ? ne : *nq - 2;
     }
 }
 
@@ -274,12 +236,11 @@ LC3_HOT static void quantize(
  * x, nq           Spectral quantized, and count of significants
  * return          Unquantized gain value
  */
-LC3_HOT static float unquantize(
-    enum lc3_dt dt, enum lc3_srate sr,
+LC3_HOT static float unquantize(enum lc3_dt dt, enum lc3_srate sr,
     int g_int, float *x, int nq)
 {
     float g = unquantize_gain(g_int);
-    int i, ne = lc3_ne(dt, sr);
+    int i, ne = LC3_NE(dt, sr);
 
     for (i = 0; i < nq; i++)
         x[i] = x[i] * g;
@@ -296,19 +257,13 @@ LC3_HOT static float unquantize(
  * -------------------------------------------------------------------------- */
 
 /**
- * Resolve High-bitrate and LSB modes according size of the frame
+ * Resolve High-bitrate mode according size of the frame
  * sr, nbytes      Samplerate and size of the frame
- * p_lsb_mode      True when LSB mode allowed, when not NULL
  * return          True when High-Rate mode enabled
  */
-static bool resolve_modes(enum lc3_srate sr, int nbytes, bool *p_lsb_mode)
+static int resolve_high_rate(enum lc3_srate sr, int nbytes)
 {
-    int sr_ind = lc3_hr(sr) ? 4 + (sr - LC3_SRATE_48K_HR) : sr;
-
-    if (p_lsb_mode)
-      *p_lsb_mode = (nbytes >= 20 * (3 + sr_ind)) && (sr < LC3_SRATE_96K_HR);
-
-    return (nbytes > 20 * (1 + sr_ind)) && (sr < LC3_SRATE_96K_HR);
+    return nbytes > 20 * (1 + (int)sr);
 }
 
 /**
@@ -319,13 +274,21 @@ static bool resolve_modes(enum lc3_srate sr, int nbytes, bool *p_lsb_mode)
  * nbits_budget    Truncate to stay in budget, when not zero
  * p_lsb_mode      Return True when LSB's are not AC coded, or NULL
  * return          The number of bits coding the spectrum
+ *
+ * The spectral coefficients `x` storage is :
+ *   b0       0:positive or zero  1:negative
+ *   b15..b1  Absolute value
  */
 LC3_HOT static int compute_nbits(
     enum lc3_dt dt, enum lc3_srate sr, int nbytes,
-    const float *x, int *n, int nbits_budget, bool *p_lsb_mode)
+    const uint16_t *x, int *n, int nbits_budget, bool *p_lsb_mode)
 {
-    bool lsb_mode, high_rate = resolve_modes(sr, nbytes, &lsb_mode);
-    int ne = lc3_ne(dt, sr);
+    int ne = LC3_NE(dt, sr);
+
+    /* --- Mode and rate --- */
+
+    bool lsb_mode  = nbytes >= 20 * (3 + (int)sr);
+    bool high_rate = resolve_high_rate(sr, nbytes);
 
     /* --- Loop on quantized coefficients --- */
 
@@ -343,15 +306,12 @@ LC3_HOT static int compute_nbits(
         for ( ; i < LC3_MIN(*n, (ne + 2) >> (1 - h))
                 && nbits <= nbits_budget; i += 2) {
 
-            float xq_off = lc3_hr(sr) ? 0.5f : 6.f/16;
-            uint32_t a = fabsf(x[i+0]) + xq_off;
-            uint32_t b = fabsf(x[i+1]) + xq_off;
-
             const uint8_t *lut = lut_coeff[state];
+            uint16_t a = x[i] >> 1, b = x[i+1] >> 1;
 
             /* --- Sign values --- */
 
-            int s = (a != 0) + (b != 0);
+            int s = (a > 0) + (b > 0);
             nbits += s * 2048;
 
             /* --- LSB values Reduce to 2*2 bits MSB values ---
@@ -360,8 +320,8 @@ LC3_HOT static int compute_nbits(
              * The LSB mode does not arthmetic code the first LSB,
              * add the sign of the LSB when one of pair was at value 1 */
 
-            uint32_t m = (a | b) >> 2;
-            unsigned k = 0;
+            int k = 0;
+            int m = (a | b) >> 2;
 
             if (m) {
 
@@ -413,15 +373,19 @@ LC3_HOT static int compute_nbits(
  * Put quantized spectrum
  * bits            Bitstream context
  * dt, sr, nbytes  Duration, samplerate and size of the frame
- * x               Spectral quantized coefficients
+ * x               Spectral quantized
  * nq, lsb_mode    Count of significants, and LSB discard indication
+ *
+ * The spectral coefficients `x` storage is :
+ *   b0       0:positive or zero  1:negative
+ *   b15..b1  Absolute value
  */
 LC3_HOT static void put_quantized(lc3_bits_t *bits,
     enum lc3_dt dt, enum lc3_srate sr, int nbytes,
-    const float *x, int nq, bool lsb_mode)
+    const uint16_t *x, int nq, bool lsb_mode)
 {
-    bool high_rate = resolve_modes(sr, nbytes, NULL);
-    int ne = lc3_ne(dt, sr);
+    int ne = LC3_NE(dt, sr);
+    bool high_rate = resolve_high_rate(sr, nbytes);
 
     /* --- Loop on quantized coefficients --- */
 
@@ -432,19 +396,16 @@ LC3_HOT static void put_quantized(lc3_bits_t *bits,
 
         for ( ; i < LC3_MIN(nq, (ne + 2) >> (1 - h)); i += 2) {
 
-            float xq_off = lc3_hr(sr) ? 0.5f : 6.f/16;
-            uint32_t a = fabsf(x[i+0]) + xq_off;
-            uint32_t b = fabsf(x[i+1]) + xq_off;
-
             const uint8_t *lut = lut_coeff[state];
+            uint16_t a = x[i] >> 1, b = x[i+1] >> 1;
 
             /* --- LSB values Reduce to 2*2 bits MSB values ---
              * Reduce to 2x2 bits MSB values. The LSB's pair are arithmetic
              * coded with an escape code and 1 bits for each values.
              * The LSB mode discard the first LSB (at this step) */
 
-            uint32_t m = (a | b) >> 2;
-            unsigned k = 0, shr = 0;
+            int m = (a | b) >> 2;
+            int k = 0, shr = 0;
 
             if (m) {
 
@@ -468,8 +429,8 @@ LC3_HOT static void put_quantized(lc3_bits_t *bits,
 
             /* --- Sign values --- */
 
-            if (a) lc3_put_bit(bits, x[i+0] < 0);
-            if (b) lc3_put_bit(bits, x[i+1] < 0);
+            if (a) lc3_put_bit(bits, x[i+0] & 1);
+            if (b) lc3_put_bit(bits, x[i+1] & 1);
 
             /* --- MSB values --- */
 
@@ -490,18 +451,18 @@ LC3_HOT static void put_quantized(lc3_bits_t *bits,
  * bits            Bitstream context
  * dt, sr, nbytes  Duration, samplerate and size of the frame
  * nq, lsb_mode    Count of significants, and LSB discard indication
- * x               Return `nq` spectral quantized coefficients
+ * xq              Return `nq` spectral quantized coefficients
  * nf_seed         Return the noise factor seed associated
  * return          0: Ok  -1: Invalid bitstream data
  */
 LC3_HOT static int get_quantized(lc3_bits_t *bits,
     enum lc3_dt dt, enum lc3_srate sr, int nbytes,
-    int nq, bool lsb_mode, float *x, uint16_t *nf_seed)
+    int nq, bool lsb_mode, float *xq, uint16_t *nf_seed)
 {
-    bool high_rate = resolve_modes(sr, nbytes, NULL);
-    int ne = lc3_ne(dt, sr);
+    int ne = LC3_NE(dt, sr);
+    bool high_rate = resolve_high_rate(sr, nbytes);
 
-    *nf_seed = 0;
+     *nf_seed = 0;
 
     /* --- Loop on quantized coefficients --- */
 
@@ -513,7 +474,6 @@ LC3_HOT static int get_quantized(lc3_bits_t *bits,
         for ( ; i < LC3_MIN(nq, (ne + 2) >> (1 - h)); i += 2) {
 
             const uint8_t *lut = lut_coeff[state];
-            int max_shl = lc3_hr(sr) ? 22 : 14;
 
             /* --- LSB values ---
              * Until the symbol read indicates the escape value 16,
@@ -530,7 +490,7 @@ LC3_HOT static int get_quantized(lc3_bits_t *bits,
                 shl++;
             }
 
-            for ( ; s >= 16 && shl < max_shl; shl++) {
+            for ( ; s >= 16 && shl < 14; shl++) {
                 u |= lc3_get_bit(bits) << shl;
                 v |= lc3_get_bit(bits) << shl;
 
@@ -549,11 +509,10 @@ LC3_HOT static int get_quantized(lc3_bits_t *bits,
             u |= a << shl;
             v |= b << shl;
 
-            x[i+0] = u && lc3_get_bit(bits) ? -u : u;
-            x[i+1] = v && lc3_get_bit(bits) ? -v : v;
+            xq[i  ] = u && lc3_get_bit(bits) ? -u : u;
+            xq[i+1] = v && lc3_get_bit(bits) ? -v : v;
 
-            *nf_seed = (*nf_seed + (u & 0x7fff) * (i  )
-                                 + (v & 0x7fff) * (i+1)) & 0xffff;
+            *nf_seed = (*nf_seed + u * i + v * (i+1)) & 0xffff;
 
             /* --- Update state --- */
 
@@ -568,30 +527,25 @@ LC3_HOT static int get_quantized(lc3_bits_t *bits,
  * Put residual bits of quantization
  * bits            Bitstream context
  * nbits           Maximum number of bits to output
- * hrmode          High-Resolution mode
  * x, n            Spectral quantized, and count of significants
+ * xf              Scaled spectral coefficients
+ *
+ * The spectral coefficients `x` storage is :
+ *   b0       0:positive or zero  1:negative
+ *   b15..b1  Absolute value
  */
-LC3_HOT static void put_residual(lc3_bits_t *bits,
-    int nbits, bool hrmode, float *x, int n)
+LC3_HOT static void put_residual(
+    lc3_bits_t *bits, int nbits, const uint16_t *x, int n, const float *xf)
 {
-    float xq_lim = hrmode ? 0.5f : 10.f/16;
-    float xq_off = xq_lim / 2;
+    for (int i = 0; i < n && nbits > 0; i++) {
 
-    for (int iter = 0; iter < (hrmode ? 20 : 1) && nbits > 0; iter++) {
-        for (int i = 0; i < n && nbits > 0; i++) {
+        if (x[i] == 0)
+            continue;
 
-            float xr = fabsf(x[i]);
-            if (xr < xq_lim)
-                continue;
+        float xq = x[i] & 1 ? -(x[i] >> 1) : (x[i] >> 1);
 
-            bool b = (xr - truncf(xr) < xq_lim) ^ (x[i] < 0);
-            lc3_put_bit(bits, b);
-            nbits--;
-
-            x[i] += b ? -xq_off : xq_off;
-        }
-
-        xq_off *= xq_lim;
+        lc3_put_bit(bits, xf[i] >= xq);
+        nbits--;
     }
 }
 
@@ -599,31 +553,22 @@ LC3_HOT static void put_residual(lc3_bits_t *bits,
  * Get residual bits of quantization
  * bits            Bitstream context
  * nbits           Maximum number of bits to output
- * hrmode          High-Resolution mode
  * x, nq           Spectral quantized, and count of significants
  */
-LC3_HOT static void get_residual(lc3_bits_t *bits,
-    int nbits, bool hrmode, float *x, int n)
+LC3_HOT static void get_residual(
+    lc3_bits_t *bits, int nbits, float *x, int nq)
 {
-    float xq_off_1 = hrmode ? 0.25f : 5.f/16;
-    float xq_off_2 = hrmode ? 0.25f : 3.f/16;
+    for (int i = 0; i < nq && nbits > 0; i++) {
 
-    for (int iter = 0; iter < (hrmode ? 20 : 1) && nbits > 0; iter++) {
-        for (int i = 0; i < n && nbits > 0; i++) {
+        if (x[i] == 0)
+            continue;
 
-            if (x[i] == 0)
-              continue;
+        if (lc3_get_bit(bits) == 0)
+            x[i] -= x[i] < 0 ? 5.f/16 : 3.f/16;
+        else
+            x[i] += x[i] > 0 ? 5.f/16 : 3.f/16;
 
-            if (lc3_get_bit(bits) == 0)
-                x[i] -= x[i] < 0 ? xq_off_1 : xq_off_2;
-            else
-                x[i] += x[i] > 0 ? xq_off_1 : xq_off_2;
-
-            nbits--;
-        }
-
-        xq_off_1 *= 0.5f;
-        xq_off_2 *= 0.5f;
+        nbits--;
     }
 }
 
@@ -631,17 +576,18 @@ LC3_HOT static void get_residual(lc3_bits_t *bits,
  * Put LSB values of quantized spectrum values
  * bits            Bitstream context
  * nbits           Maximum number of bits to output
- * hrmode          High-Resolution mode
  * x, n            Spectral quantized, and count of significants
+ *
+ * The spectral coefficients `x` storage is :
+ *   b0       0:positive or zero  1:negative
+ *   b15..b1  Absolute value
  */
-LC3_HOT static void put_lsb(lc3_bits_t *bits,
-    int nbits, bool hrmode, const float *x, int n)
+LC3_HOT static void put_lsb(
+    lc3_bits_t *bits, int nbits, const uint16_t *x, int n)
 {
     for (int i = 0; i < n && nbits > 0; i += 2) {
-
-        float xq_off = hrmode ? 0.5f : 6.f/16;
-        uint32_t a = fabsf(x[i+0]) + xq_off;
-        uint32_t b = fabsf(x[i+1]) + xq_off;
+        uint16_t a = x[i] >> 1, b = x[i+1] >> 1;
+        int a_neg = x[i] & 1, b_neg = x[i+1] & 1;
 
         if ((a | b) >> 2 == 0)
             continue;
@@ -650,13 +596,13 @@ LC3_HOT static void put_lsb(lc3_bits_t *bits,
             lc3_put_bit(bits, a & 1);
 
         if (a == 1 && nbits-- > 0)
-            lc3_put_bit(bits, x[i+0] < 0);
+            lc3_put_bit(bits, a_neg);
 
         if (nbits-- > 0)
             lc3_put_bit(bits, b & 1);
 
         if (b == 1 && nbits-- > 0)
-            lc3_put_bit(bits, x[i+1] < 0);
+            lc3_put_bit(bits, b_neg);
     }
 }
 
@@ -707,31 +653,34 @@ LC3_HOT static void get_lsb(lc3_bits_t *bits,
 /**
  * Estimate noise level
  * dt, bw          Duration and bandwidth of the frame
- * hrmode          High-Resolution mode
- * x, n            Spectral quantized, and count of significants
+ * xq, nq          Quantized spectral coefficients
+ * x               Quantization scaled spectrum coefficients
  * return          Noise factor (0 to 7)
+ *
+ * The spectral coefficients `x` storage is :
+ *   b0       0:positive or zero  1:negative
+ *   b15..b1  Absolute value
  */
-LC3_HOT static int estimate_noise(
-    enum lc3_dt dt, enum lc3_bandwidth bw, bool hrmode, const float *x, int n)
+LC3_HOT static int estimate_noise(enum lc3_dt dt, enum lc3_bandwidth bw,
+    const uint16_t *xq, int nq, const float *x)
 {
-    int bw_stop = lc3_ne(dt, (enum lc3_srate)LC3_MIN(bw, LC3_BANDWIDTH_FB));
-    int w = 1 + (dt >= LC3_DT_7M5) + (dt>= LC3_DT_10M);
+    int bw_stop = (dt == LC3_DT_7M5 ? 60 : 80) * (1 + bw);
+    int w = 2 + dt;
 
-    float xq_lim = hrmode ? 0.5f : 10.f/16;
     float sum = 0;
-    int i, ns = 0, z = 0;
+    int i, n = 0, z = 0;
 
-    for (i = 6 * (1 + dt) - w; i < LC3_MIN(n, bw_stop); i++) {
-        z = fabsf(x[i]) < xq_lim ? z + 1 : 0;
+    for (i = 6*(3 + dt) - w; i < LC3_MIN(nq, bw_stop); i++) {
+        z = xq[i] ? 0 : z + 1;
         if (z > 2*w)
-            sum += fabsf(x[i - w]), ns++;
+            sum += fabsf(x[i - w]), n++;
     }
 
     for ( ; i < bw_stop + w; i++)
         if (++z > 2*w)
-            sum += fabsf(x[i - w]), ns++;
+            sum += fabsf(x[i - w]), n++;
 
-    int nf = ns ? 8 - (int)((16 * sum) / ns + 0.5f) : 8;
+    int nf = n ? 8 - (int)((16 * sum) / n + 0.5f) : 0;
 
     return LC3_CLIP(nf, 0, 7);
 }
@@ -746,13 +695,13 @@ LC3_HOT static int estimate_noise(
 LC3_HOT static void fill_noise(enum lc3_dt dt, enum lc3_bandwidth bw,
     int nf, uint16_t nf_seed, float g, float *x, int nq)
 {
-    int bw_stop = lc3_ne(dt, (enum lc3_srate)LC3_MIN(bw, LC3_BANDWIDTH_FB));
-    int w = 1 + (dt >= LC3_DT_7M5) + (dt>= LC3_DT_10M);
+    int bw_stop = (dt == LC3_DT_7M5 ? 60 : 80) * (1 + bw);
+    int w = 2 + dt;
 
     float s = g * (float)(8 - nf) / 16;
     int i, z = 0;
 
-    for (i = 6 * (1 + dt) - w; i < LC3_MIN(nq, bw_stop); i++) {
+    for (i = 6*(3 + dt) - w; i < LC3_MIN(nq, bw_stop); i++) {
         z = x[i] ? 0 : z + 1;
         if (z > 2*w) {
             nf_seed = (13849 + nf_seed*31821) & 0xffff;
@@ -794,13 +743,13 @@ static int get_noise_factor(lc3_bits_t *bits)
 
 /**
  * Bit consumption of the number of coded coefficients
- * dt, sr, nbytes  Duration, samplerate and size of the frame
+ * dt, sr          Duration, samplerate of the frame
  * return          Bit consumpution of the number of coded coefficients
  */
 static int get_nbits_nq(enum lc3_dt dt, enum lc3_srate sr)
 {
-    int ne = lc3_ne(dt, sr);
-    return 4 + (ne > 32) + (ne > 64) + (ne > 128) + (ne > 256) + (ne > 512);
+    int ne = LC3_NE(dt, sr);
+    return 4 + (ne > 32) + (ne > 64) + (ne > 128) + (ne > 256);
 }
 
 /**
@@ -810,18 +759,16 @@ static int get_nbits_nq(enum lc3_dt dt, enum lc3_srate sr)
  */
 static int get_nbits_ac(enum lc3_dt dt, enum lc3_srate sr, int nbytes)
 {
-    return get_nbits_nq(dt, sr) +
-        3 + lc3_hr(sr) + LC3_MIN((nbytes-1) / 160, 2);
+    return get_nbits_nq(dt, sr) + 3 + LC3_MIN((nbytes-1) / 160, 2);
 }
 
 /**
  * Spectrum analysis
  */
-void lc3_spec_analyze(
-    enum lc3_dt dt, enum lc3_srate sr, int nbytes,
-    bool pitch, const lc3_tns_data_t *tns,
-    struct lc3_spec_analysis *spec,
-    float *x, struct lc3_spec_side *side)
+void lc3_spec_analyze(enum lc3_dt dt, enum lc3_srate sr,
+    int nbytes, bool pitch, const lc3_tns_data_t *tns,
+    struct lc3_spec_analysis *spec, float *x,
+    uint16_t *xq, struct lc3_spec_side *side)
 {
     bool reset_off;
 
@@ -842,37 +789,35 @@ void lc3_spec_analyze(
 
     int g_off = resolve_gain_offset(sr, nbytes);
 
-    int g_min, g_int = estimate_gain(dt, sr,
-        x, nbytes, nbits_budget, nbits_off, g_off, &reset_off, &g_min);
+    int g_int = estimate_gain(dt, sr,
+        x, nbits_budget, nbits_off, g_off, &reset_off);
 
     /* --- Quantization --- */
 
-    quantize(dt, sr, g_int, x, &side->nq);
+    quantize(dt, sr, g_int, x, xq, &side->nq);
 
-    int nbits = compute_nbits(dt, sr, nbytes, x, &side->nq, 0, NULL);
+    int nbits = compute_nbits(dt, sr, nbytes, xq, &side->nq, 0, NULL);
 
     spec->nbits_off = reset_off ? 0 : nbits_off;
     spec->nbits_spare = reset_off ? 0 : nbits_budget - nbits;
 
     /* --- Adjust gain and requantize --- */
 
-    int g_adj = adjust_gain(dt, sr,
-        g_off + g_int, nbits, nbits_budget, g_off + g_min);
+    int g_adj = adjust_gain(sr, g_int + g_off, nbits, nbits_budget);
 
     if (g_adj)
-        quantize(dt, sr, g_adj, x, &side->nq);
+        quantize(dt, sr, g_adj, x, xq, &side->nq);
 
     side->g_idx = g_int + g_adj + g_off;
     nbits = compute_nbits(dt, sr, nbytes,
-        x, &side->nq, nbits_budget, &side->lsb_mode);
+        xq, &side->nq, nbits_budget, &side->lsb_mode);
 }
 
 /**
  * Put spectral quantization side data
  */
 void lc3_spec_put_side(lc3_bits_t *bits,
-    enum lc3_dt dt, enum lc3_srate sr,
-    const struct lc3_spec_side *side)
+    enum lc3_dt dt, enum lc3_srate sr, const struct lc3_spec_side *side)
 {
     int nbits_nq = get_nbits_nq(dt, sr);
 
@@ -885,22 +830,22 @@ void lc3_spec_put_side(lc3_bits_t *bits,
  * Encode spectral coefficients
  */
 void lc3_spec_encode(lc3_bits_t *bits,
-    enum lc3_dt dt, enum lc3_srate sr, enum lc3_bandwidth bw,
-    int nbytes, const lc3_spec_side_t *side, float *x)
+    enum lc3_dt dt, enum lc3_srate sr, enum lc3_bandwidth bw, int nbytes,
+    const uint16_t *xq, const lc3_spec_side_t *side, const float *x)
 {
     bool lsb_mode = side->lsb_mode;
     int nq = side->nq;
 
-    put_noise_factor(bits, estimate_noise(dt, bw, lc3_hr(sr), x, nq));
+    put_noise_factor(bits, estimate_noise(dt, bw, xq, nq, x));
 
-    put_quantized(bits, dt, sr, nbytes, x, nq, lsb_mode);
+    put_quantized(bits, dt, sr, nbytes, xq, nq, lsb_mode);
 
     int nbits_left = lc3_get_bits_left(bits);
 
     if (lsb_mode)
-        put_lsb(bits, nbits_left, lc3_hr(sr), x, nq);
+        put_lsb(bits, nbits_left, xq, nq);
     else
-        put_residual(bits, nbits_left, lc3_hr(sr), x, nq);
+        put_residual(bits, nbits_left, xq, nq, x);
 }
 
 
@@ -915,7 +860,7 @@ int lc3_spec_get_side(lc3_bits_t *bits,
     enum lc3_dt dt, enum lc3_srate sr, struct lc3_spec_side *side)
 {
     int nbits_nq = get_nbits_nq(dt, sr);
-    int ne = lc3_ne(dt, sr);
+    int ne = LC3_NE(dt, sr);
 
     side->nq = (lc3_get_bits(bits, nbits_nq) + 1) << 1;
     side->lsb_mode = lc3_get_bit(bits);
@@ -947,7 +892,7 @@ int lc3_spec_decode(lc3_bits_t *bits,
     if (lsb_mode)
         get_lsb(bits, nbits_left, x, nq, &nf_seed);
     else
-        get_residual(bits, nbits_left, lc3_hr(sr), x, nq);
+        get_residual(bits, nbits_left, x, nq);
 
     int g_int = side->g_idx - resolve_gain_offset(sr, nbytes);
     float g = unquantize(dt, sr, g_int, x, nq);

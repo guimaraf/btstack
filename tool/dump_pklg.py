@@ -15,7 +15,7 @@ import sys
 import datetime
 import struct
 
-packet_types = [ "CMD =>", "EVT <=", "ACL =>", "ACL <=", "0x04", "0x05", "0x06", "0x07", "SCO =>", "SCO <=", "0x0A", "0x0B", "ISO =>", "ISO <="]
+packet_types = [ "CMD =>", "EVT <=", "ACL =>", "ACL <="]
 
 def read_header(f):
 	bytes_read = f.read(13)
@@ -46,7 +46,7 @@ with open (infile, 'rb') as fin:
 			(len, ts_sec, ts_usec, type) = read_header(fin)
 			if len < 0:
 				break
-			packet_len = len - 9
+			packet_len = len - 9;
 			if (packet_len > 66000):
 				print ("Error parsing pklg at offset %u (%x)." % (pos, pos))
 				break
@@ -56,7 +56,7 @@ with open (infile, 'rb') as fin:
 			if type == 0xfc:
 				print (time, "LOG", packet.decode('ascii'))
 				continue
-			if type <= 0x0D:
+			if type <= 0x03:
 				print (time, packet_types[type], as_hex(packet))
 	except TypeError:
 		print ("Error parsing pklg at offset %u (%x)." % (pos, pos))

@@ -45,13 +45,6 @@
 #include "btstack_debug.h"
 #include "btstack_util.h"
 
-#ifdef ENABLE_LOG_OBEX
-    #define RETURN_OBEX_STATE(state) { log_debug("RETURN_OBEX_STATE <%s>(%d)", #state, state); return state; } 
-#else
-    #define log_app_messaging(...)
-    #define RETURN_OBEX_STATE(state) return state
-#endif
-
 static uint16_t obex_parser_param_size_for_request(uint8_t opcode){
     switch (opcode) {
         case OBEX_OPCODE_SETPATH:
@@ -216,13 +209,13 @@ obex_parser_object_state_t obex_parser_process_data(obex_parser_t *obex_parser, 
 
     switch (obex_parser->state){
         case OBEX_PARSER_STATE_COMPLETE:
-            RETURN_OBEX_STATE(OBEX_PARSER_OBJECT_STATE_COMPLETE);
+            return OBEX_PARSER_OBJECT_STATE_COMPLETE;
         case OBEX_PARSER_STATE_OVERRUN:
-            RETURN_OBEX_STATE(OBEX_PARSER_OBJECT_STATE_OVERRUN);
+            return OBEX_PARSER_OBJECT_STATE_OVERRUN;
         case OBEX_PARSER_STATE_INVALID:
-            RETURN_OBEX_STATE(OBEX_PARSER_OBJECT_STATE_INVALID);
+            return OBEX_PARSER_OBJECT_STATE_INVALID;
         default:
-            RETURN_OBEX_STATE(OBEX_PARSER_OBJECT_STATE_INCOMPLETE);
+            return OBEX_PARSER_OBJECT_STATE_INCOMPLETE;
     }
 }
 
@@ -249,11 +242,11 @@ obex_parser_header_state_t obex_parser_header_store(uint8_t * header_buffer, uin
     memcpy(&header_buffer[data_offset], data_buffer, bytes_to_store);
     uint16_t new_offset = data_offset + bytes_to_store;
     if (new_offset > buffer_size){
-        RETURN_OBEX_STATE(OBEX_PARSER_HEADER_OVERRUN);
+        return OBEX_PARSER_HEADER_OVERRUN;
     } else if (new_offset == total_len) {
-        RETURN_OBEX_STATE(OBEX_PARSER_HEADER_COMPLETE);
+        return OBEX_PARSER_HEADER_COMPLETE;
     } else {
-        RETURN_OBEX_STATE(OBEX_PARSER_HEADER_INCOMPLETE);
+        return OBEX_PARSER_HEADER_INCOMPLETE;
     }
 }
 
@@ -273,7 +266,7 @@ obex_app_param_parser_params_state_t obex_app_param_parser_process_data(obex_app
         uint16_t bytes_to_consume = 1;
         switch(parser->state){
             case OBEX_APP_PARAM_PARSER_STATE_INVALID:
-                RETURN_OBEX_STATE(OBEX_APP_PARAM_PARSER_PARAMS_STATE_INVALID);
+                return OBEX_APP_PARAM_PARSER_PARAMS_STATE_INVALID;
             case OBEX_APP_PARAM_PARSER_STATE_W4_TYPE:
                 parser->tag_id = *data_buffer;
                 parser->state = OBEX_APP_PARAM_PARSER_STATE_W4_LEN;
@@ -282,7 +275,7 @@ obex_app_param_parser_params_state_t obex_app_param_parser_process_data(obex_app
                 parser->tag_len = *data_buffer;
                 if ((parser->param_pos + parser->tag_len) > parser->param_size){
                     parser->state = OBEX_APP_PARAM_PARSER_STATE_INVALID;
-                    RETURN_OBEX_STATE(OBEX_APP_PARAM_PARSER_PARAMS_STATE_INVALID);
+                    return OBEX_APP_PARAM_PARSER_PARAMS_STATE_INVALID;
                 }
                 parser->tag_pos = 0;
                 parser->state = OBEX_APP_PARAM_PARSER_STATE_W4_VALUE;
@@ -316,16 +309,16 @@ obex_app_param_parser_params_state_t obex_app_param_parser_process_data(obex_app
     }
 
     if (data_len > 0){
-        RETURN_OBEX_STATE(OBEX_APP_PARAM_PARSER_PARAMS_STATE_OVERRUN);
+        return OBEX_APP_PARAM_PARSER_PARAMS_STATE_OVERRUN;
     }
 
     switch (parser->state){
         case OBEX_APP_PARAM_PARSER_STATE_COMPLETE:
-            RETURN_OBEX_STATE(OBEX_APP_PARAM_PARSER_PARAMS_STATE_COMPLETE);
+            return OBEX_APP_PARAM_PARSER_PARAMS_STATE_COMPLETE;
         case OBEX_APP_PARAM_PARSER_STATE_INVALID:
-            RETURN_OBEX_STATE(OBEX_APP_PARAM_PARSER_PARAMS_STATE_INVALID);
+            return OBEX_APP_PARAM_PARSER_PARAMS_STATE_INVALID;
         default:
-            RETURN_OBEX_STATE(OBEX_APP_PARAM_PARSER_PARAMS_STATE_INCOMPLETE);
+            return OBEX_APP_PARAM_PARSER_PARAMS_STATE_INCOMPLETE;
     }
 }
 
@@ -336,10 +329,10 @@ obex_app_param_parser_tag_state_t obex_app_param_parser_tag_store(uint8_t * head
     memcpy(&header_buffer[data_offset], data_buffer, bytes_to_store);
     uint16_t new_offset = data_offset + bytes_to_store;
     if (new_offset > buffer_size){
-        RETURN_OBEX_STATE(OBEX_APP_PARAM_PARSER_TAG_OVERRUN);
+        return OBEX_APP_PARAM_PARSER_TAG_OVERRUN;
     } else if (new_offset == total_len) {
-        RETURN_OBEX_STATE(OBEX_APP_PARAM_PARSER_TAG_COMPLETE);
+        return OBEX_APP_PARAM_PARSER_TAG_COMPLETE;
     } else {
-        RETURN_OBEX_STATE(OBEX_APP_PARAM_PARSER_TAG_INCOMPLETE);
+        return OBEX_APP_PARAM_PARSER_TAG_INCOMPLETE;
     }
 }

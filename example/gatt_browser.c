@@ -269,26 +269,20 @@ int btstack_main(int argc, const char * argv[]){
 
 #ifdef HAVE_BTSTACK_STDIN
     // process command line arguments when running in a shell
-    int arg;
+    int arg = 1;
     cmdline_addr_found = 0;
     
-    for (arg = 1; arg < argc; arg++) {
-        if(!strcmp(argv[arg], "-a") || !strcmp(argv[arg], "--address")){
-            if (arg + 1 < argc) {
-                arg++;
-                cmdline_addr_found = sscanf_bd_addr(argv[arg], cmdline_addr);
-            }
-            if (!cmdline_addr_found) {
-                fprintf(stderr, "\nUsage: %s [-a|--address aa:bb:cc:dd:ee:ff]\n", argv[0]);
-                fprintf(stderr, "If no argument is provided, %s will start scanning and connect to the first found device.\n"
-                                "To connect to a specific device use argument [-a].\n\n", argv[0]);
-                return 1;
-            }
+    while (arg < argc) {
+		if(!strcmp(argv[arg], "-a") || !strcmp(argv[arg], "--address")){
+			arg++;
+			cmdline_addr_found = sscanf_bd_addr(argv[arg], cmdline_addr);
+            arg++;
+            continue;
         }
-    }
-    if (!cmdline_addr_found) {
-        fprintf(stderr, "No specific address specified or found; start scanning for any advertiser.\n");
-    }
+        fprintf(stderr, "\nUsage: %s [-a|--address aa:bb:cc:dd:ee:ff]\n", argv[0]);
+        fprintf(stderr, "If no argument is provided, GATT browser will start scanning and connect to the first found device.\nTo connect to a specific device use argument [-a].\n\n");
+        return 0;
+	}
 #else
     (void)argc;
     (void)argv;

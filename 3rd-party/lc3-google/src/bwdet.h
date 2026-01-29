@@ -16,6 +16,13 @@
  *
  ******************************************************************************/
 
+/**
+ * LC3 - Bandwidth detector
+ *
+ * Reference : Low Complexity Communication Codec (LC3)
+ *             Bluetooth Specification v1.0
+ */
+
 #ifndef __LC3_BWDET_H
 #define __LC3_BWDET_H
 
@@ -24,7 +31,7 @@
 
 
 /**
- * Bandwidth detector
+ * Bandwidth detector (cf. 3.3.5)
  * dt, sr          Duration and samplerate of the frame
  * e               Energy estimation per bands
  * return          Return detected bandwitdth

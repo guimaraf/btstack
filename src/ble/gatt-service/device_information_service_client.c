@@ -84,9 +84,6 @@ typedef struct {
     uint8_t characteristic_index;
 } device_information_service_client_t;
 
-
-static btstack_context_callback_registration_t device_information_service_handle_can_send_now;
-
 static device_information_service_client_t device_information_service_client;
 
 static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
@@ -94,7 +91,6 @@ static void device_information_service_emit_string_value(device_information_serv
 static void device_information_service_emit_system_id(device_information_service_client_t * client, uint8_t subevent, uint8_t att_status, const uint8_t * value, uint16_t value_len);
 static void device_information_service_emit_certification_data_list(device_information_service_client_t * client, uint8_t subevent, uint8_t att_status, const uint8_t * value, uint16_t value_len);
 static void device_information_service_emit_pnp_id(device_information_service_client_t * client, uint8_t subevent, uint8_t att_status, const uint8_t * value, uint16_t value_len);
-static void device_information_service_emit_udi_for_medical_devices(device_information_service_client_t * client, uint8_t subevent, uint8_t att_status, const uint8_t * value, uint16_t value_len);
 
 // list of uuids and how they are reported as events
 static const struct device_information_characteristic {
@@ -111,20 +107,8 @@ static const struct device_information_characteristic {
 
     {ORG_BLUETOOTH_CHARACTERISTIC_SYSTEM_ID, GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_SYSTEM_ID, device_information_service_emit_system_id},
     {ORG_BLUETOOTH_CHARACTERISTIC_IEEE_11073_20601_REGULATORY_CERTIFICATION_DATA_LIST, GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_IEEE_REGULATORY_CERTIFICATION, device_information_service_emit_certification_data_list},
-    {ORG_BLUETOOTH_CHARACTERISTIC_PNP_ID, GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_PNP_ID, device_information_service_emit_pnp_id},
-    {ORG_BLUETOOTH_CHARACTERISTIC_UDI_FOR_MEDICAL_DEVICES, GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_UDI_FOR_MEDICAL_DEVICES, device_information_service_emit_udi_for_medical_devices}
+    {ORG_BLUETOOTH_CHARACTERISTIC_PNP_ID, GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_PNP_ID, device_information_service_emit_pnp_id}
 };
-
-static uint8_t device_informatiom_client_request_send_gatt_query(device_information_service_client_t * client){
-    uint8_t status = gatt_client_request_to_send_gatt_query(&device_information_service_handle_can_send_now, client->con_handle);
-    if (status != ERROR_CODE_SUCCESS){
-        if (client->state >= DEVICE_INFORMATION_SERVICE_CLIENT_STATE_W2_QUERY_SERVICE){
-            client->state = DEVICE_INFORMATION_SERVICE_CLIENT_STATE_IDLE;
-        }
-        
-    } 
-    return status;
-}
 
 #ifdef ENABLE_TESTING_SUPPORT
 static struct device_information_characteristic_handles{
@@ -139,8 +123,7 @@ static struct device_information_characteristic_handles{
     {ORG_BLUETOOTH_CHARACTERISTIC_SOFTWARE_REVISION_STRING, 0},
     {ORG_BLUETOOTH_CHARACTERISTIC_SYSTEM_ID, 0},
     {ORG_BLUETOOTH_CHARACTERISTIC_IEEE_11073_20601_REGULATORY_CERTIFICATION_DATA_LIST, 0},
-    {ORG_BLUETOOTH_CHARACTERISTIC_PNP_ID, 0},
-    {ORG_BLUETOOTH_CHARACTERISTIC_UDI_FOR_MEDICAL_DEVICES, 0}
+    {ORG_BLUETOOTH_CHARACTERISTIC_PNP_ID, 0}
 };
 
 static void device_information_service_update_handle_for_uuid(uint16_t uuid, uint16_t value_handle){
@@ -186,10 +169,6 @@ static char * device_information_characteristic_name(uint16_t uuid){
         
         case ORG_BLUETOOTH_CHARACTERISTIC_PNP_ID:
             return "PNP_ID";
-        
-        case ORG_BLUETOOTH_CHARACTERISTIC_UDI_FOR_MEDICAL_DEVICES:
-            return "ORG_BLUETOOTH_CHARACTERISTIC_UDI_FOR_MEDICAL_DEVICES";
-
         default:
             return "UKNOWN";
     }
@@ -222,25 +201,25 @@ static void device_information_service_emit_query_done_and_finalize_client(devic
     device_information_service_finalize_client(client);
 
     uint8_t event[6];
-    uint16_t pos = 0;
+    int pos = 0;
     event[pos++] = HCI_EVENT_GATTSERVICE_META;
-    event[pos++] = sizeof(event) - 2u;
+    event[pos++] = sizeof(event) - 2;
     event[pos++] = GATTSERVICE_SUBEVENT_DEVICE_INFORMATION_DONE;
     little_endian_store_16(event, pos, con_handle);
-    pos += 2u;
+    pos += 2;
     event[pos++] = status;
     (*callback)(HCI_EVENT_PACKET, 0, event, pos);
 }
 
 static void device_information_service_emit_string_value(device_information_service_client_t * client, uint8_t subevent, uint8_t att_status, const uint8_t * value, uint16_t value_len){
     uint8_t event[6 + DEVICE_INFORMATION_MAX_STRING_LEN + 1];
-    uint16_t pos = 0;
+    int pos = 0;
     
     event[pos++] = HCI_EVENT_GATTSERVICE_META;
     pos++; 
     event[pos++] = subevent;
     little_endian_store_16(event, pos, client->con_handle);
-    pos += 2u;
+    pos += 2;
     event[pos++] = att_status;
 
     uint16_t bytes_to_copy = btstack_min(value_len, DEVICE_INFORMATION_MAX_STRING_LEN);
@@ -253,15 +232,15 @@ static void device_information_service_emit_string_value(device_information_serv
 }
 
 static void device_information_service_emit_system_id(device_information_service_client_t * client, uint8_t subevent, uint8_t att_status, const uint8_t * value, uint16_t value_len){
-    if (value_len != 8u) return;
+    if (value_len != 8) return;
 
     uint8_t event[14];
     uint16_t pos = 0;
     event[pos++] = HCI_EVENT_GATTSERVICE_META;
-    event[pos++] = sizeof(event) - 2u;
+    event[pos++] = sizeof(event) - 2;
     event[pos++] = subevent;
     little_endian_store_16(event, pos, client->con_handle);
-    pos += 2u;
+    pos += 2;
     event[pos++] = att_status;
     memcpy(event+pos, value, 8);
     pos += 8;
@@ -270,15 +249,15 @@ static void device_information_service_emit_system_id(device_information_service
 }
 
 static void device_information_service_emit_certification_data_list(device_information_service_client_t * client, uint8_t subevent, uint8_t att_status, const uint8_t * value, uint16_t value_len){
-    if (value_len != 4u) return;
+    if (value_len != 4) return;
 
     uint8_t event[10];
-    uint16_t pos = 0;
+    int pos = 0;
     event[pos++] = HCI_EVENT_GATTSERVICE_META;
-    event[pos++] = sizeof(event) - 2u;
+    event[pos++] = sizeof(event) - 2;
     event[pos++] = subevent;
     little_endian_store_16(event, pos, client->con_handle);
-    pos += 2u;
+    pos += 2;
     event[pos++] = att_status;
     memcpy(event + pos, value, 4);
     pos += 4;
@@ -287,15 +266,15 @@ static void device_information_service_emit_certification_data_list(device_infor
 }
 
 static void device_information_service_emit_pnp_id(device_information_service_client_t * client, uint8_t subevent, uint8_t att_status, const uint8_t * value, uint16_t value_len){
-    if (value_len != 7u) return;
+    if (value_len != 7) return;
 
     uint8_t event[13];
     uint16_t pos = 0;
     event[pos++] = HCI_EVENT_GATTSERVICE_META;
-    event[pos++] = sizeof(event) - 2u;
+    event[pos++] = sizeof(event) - 2;
     event[pos++] = subevent;
     little_endian_store_16(event, pos, client->con_handle);
-    pos += 2u;
+    pos += 2;
     event[pos++] = att_status;
     memcpy(event + pos, value, 7);
     pos += 7;
@@ -303,34 +282,8 @@ static void device_information_service_emit_pnp_id(device_information_service_cl
     (*client->client_handler)(HCI_EVENT_PACKET, 0, event, pos);
 }
 
-static void device_information_service_emit_udi_for_medical_devices(device_information_service_client_t * client, uint8_t subevent, uint8_t att_status, const uint8_t * value, uint16_t value_len){
-    uint16_t max_udi_length = 1 + 4 * DEVICE_INFORMATION_MAX_STRING_LEN;
 
-    if (value_len > max_udi_length) return;
-
-    uint8_t event[6 + 1 + 4 * DEVICE_INFORMATION_MAX_STRING_LEN];
-    uint16_t pos = 0;
-    event[pos++] = HCI_EVENT_GATTSERVICE_META;
-    event[pos++] = sizeof(event) - 2u;
-    event[pos++] = subevent;
-    little_endian_store_16(event, pos, client->con_handle);
-    pos += 2u;
-    event[pos++] = att_status;
-    memcpy(event + pos, value, value_len);
-    pos += value_len;
-
-    (*client->client_handler)(HCI_EVENT_PACKET, 0, event, pos);
-}
-
-
-static void device_information_service_send_next_query(void * context){
-    UNUSED(context);
-    device_information_service_client_t * client = device_information_service_client_get_client();
-
-    if (client == NULL){
-        return;
-    }
-
+static void device_information_service_run_for_client(device_information_service_client_t * client){
     uint8_t att_status;
 
     switch (client->state){
@@ -381,7 +334,7 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint
     uint8_t att_status;
     device_information_service_client_t * client = NULL;
     gatt_client_service_t service;
-    bool trigger_next_query = false;
+
 #ifdef ENABLE_TESTING_SUPPORT
     gatt_client_characteristic_t characteristic;
 #endif
@@ -443,7 +396,7 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint
                         return;  
                     }
 
-                    if (client->num_instances != 1u){
+                    if (client->num_instances != 1){
                         device_information_service_emit_query_done_and_finalize_client(client, ERROR_CODE_UNSUPPORTED_FEATURE_OR_PARAMETER_VALUE); 
                         return;   
                     }
@@ -454,7 +407,6 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint
 #else 
                     client->state = DEVICE_INFORMATION_SERVICE_CLIENT_STATE_W2_READ_VALUE_OF_CHARACTERISTIC;
 #endif
-                    trigger_next_query = true;
                     break;
  
 #ifdef ENABLE_TESTING_SUPPORT   
@@ -463,20 +415,17 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint
                         if ((client->characteristic_index + 1) < num_information_fields){
                             client->characteristic_index++;
                             client->state = DEVICE_INFORMATION_SERVICE_CLIENT_STATE_W2_QUERY_CHARACTERISTICS;
-                            trigger_next_query = true;
                             break;
                         } 
                         client->characteristic_index = 0;
                         client->state = DEVICE_INFORMATION_SERVICE_CLIENT_STATE_W2_READ_VALUE_OF_CHARACTERISTIC;
-                        trigger_next_query = true;
                         break;
 #endif                
                 case DEVICE_INFORMATION_SERVICE_CLIENT_STATE_W4_CHARACTERISTIC_VALUE:
                     // check if there is another characteristic to query
-                    if ((client->characteristic_index + 1u) < num_information_fields){
+                    if ((client->characteristic_index + 1) < num_information_fields){
                         client->characteristic_index++;
                         client->state = DEVICE_INFORMATION_SERVICE_CLIENT_STATE_W2_READ_VALUE_OF_CHARACTERISTIC;
-                        trigger_next_query = true;
                         break;
                     } 
                     // we are done with quering all characteristics
@@ -491,9 +440,10 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint
             break;
     }
 
-    if (trigger_next_query){
-        device_informatiom_client_request_send_gatt_query(client);
+    if (client != NULL){
+        device_information_service_run_for_client(client);
     }
+ 
 }
 
 uint8_t device_information_service_client_query(hci_con_handle_t con_handle, btstack_packet_handler_t packet_handler){
@@ -514,7 +464,7 @@ uint8_t device_information_service_client_query(hci_con_handle_t con_handle, bts
     client->client_handler = packet_handler; 
     client->state = DEVICE_INFORMATION_SERVICE_CLIENT_STATE_W2_QUERY_SERVICE;
 
-    device_informatiom_client_request_send_gatt_query(client);
+    device_information_service_run_for_client(client);
     return ERROR_CODE_SUCCESS;
 }
 
@@ -522,7 +472,6 @@ uint8_t device_information_service_client_query(hci_con_handle_t con_handle, bts
 void device_information_service_client_init(void){
     device_information_service_client_t * client = device_information_service_client_get_client();
     device_information_service_finalize_client(client);
-    device_information_service_handle_can_send_now.callback = &device_information_service_send_next_query;
 }
 
 void device_information_service_client_deinit(void){}

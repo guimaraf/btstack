@@ -98,8 +98,8 @@
 
 #ifdef HAVE_BTSTACK_STDIN
 static const char * device_addr_string = "00:1B:DC:08:E2:72"; // pts v5.0
-#endif
 static bd_addr_t device_addr;
+#endif
 
 #ifdef HAVE_BTSTACK_AUDIO_EFFECTIVE_SAMPLERATE
 static btstack_sample_rate_compensation_t sample_rate_compensation;
@@ -376,8 +376,7 @@ static int setup_demo(void){
 /* LISTING_END */
 
 
-static void playback_handler(int16_t * buffer, uint16_t num_audio_frames, const btstack_audio_context_t * context){
-    UNUSED(context);
+static void playback_handler(int16_t * buffer, uint16_t num_audio_frames){
 
 #ifdef STORE_TO_WAV_FILE
     int       wav_samples = num_audio_frames * NUM_CHANNELS;
@@ -929,22 +928,7 @@ static void avrcp_controller_packet_handler(uint8_t packet_type, uint16_t channe
             break;
         
         case AVRCP_SUBEVENT_OPERATION_COMPLETE:
-            switch ((avrcp_command_opcode_t) avrcp_subevent_operation_complete_get_command_opcode(packet)){
-                case AVRCP_CMD_OPCODE_VENDOR_DEPENDENT:
-                    printf("AVRCP Controller: PDU_ID 0x%02X - status %s\n",
-                           avrcp_subevent_operation_complete_get_pdu_id(packet),
-                           avrcp_subevent_operation_complete_get_status(packet) == ERROR_CODE_SUCCESS ? "done" : "failed");
-                    break;
-                case AVRCP_CMD_OPCODE_SUBUNIT_INFO:
-                case AVRCP_CMD_OPCODE_UNIT_INFO:
-                case AVRCP_CMD_OPCODE_PASS_THROUGH:
-                    printf("AVRCP Controller: Operation ID 0x%02X - status %s\n",
-                           avrcp_subevent_operation_complete_get_operation_id(packet),
-                           avrcp_subevent_operation_complete_get_status(packet) == ERROR_CODE_SUCCESS ? "done" : "failed");
-                    break;
-                default:
-                    break;
-            }
+            printf("AVRCP Controller: %s complete\n", avrcp_operation2str(avrcp_subevent_operation_complete_get_operation_id(packet)));
             break;
         
         case AVRCP_SUBEVENT_OPERATION_START:

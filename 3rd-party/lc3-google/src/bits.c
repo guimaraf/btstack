@@ -139,7 +139,7 @@ int lc3_check_bits(const struct lc3_bits *bits)
 static inline void accu_flush(
     struct lc3_bits_accu *accu, struct lc3_bits_buffer *buffer)
 {
-    int nbytes = (int) LC3_MIN(accu->n >> 3,
+    int nbytes = LC3_MIN(accu->n >> 3,
         LC3_MAX(buffer->p_bw - buffer->p_fw, 0));
 
     accu->n -= 8 * nbytes;
@@ -249,7 +249,7 @@ void lc3_flush_bits(struct lc3_bits *bits)
     struct lc3_bits_accu *accu = &bits->accu;
     struct lc3_bits_buffer *buffer = &bits->buffer;
 
-    int nleft = (int)(buffer->p_bw - buffer->p_fw);
+    int nleft = buffer->p_bw - buffer->p_fw;
     for (int n = 8 * nleft - accu->n; n > 0; n -= 32)
         lc3_put_bits(bits, 0, LC3_MIN(n, 32));
 
@@ -316,13 +316,13 @@ static inline int ac_get(struct lc3_bits_buffer *buffer)
 static inline void accu_load(struct lc3_bits_accu *accu,
     struct lc3_bits_buffer *buffer)
 {
-    int nbytes = (int)LC3_MIN(accu->n >> 3, buffer->p_bw - buffer->start);
+    int nbytes = LC3_MIN(accu->n >> 3, buffer->p_bw - buffer->start);
 
     accu->n -= 8 * nbytes;
 
     for ( ; nbytes; nbytes--) {
         accu->v >>= 8;
-        accu->v |= (unsigned)*(--buffer->p_bw) << (LC3_ACCU_BITS - 8);
+        accu->v |= *(--buffer->p_bw) << (LC3_ACCU_BITS - 8);
     }
 
     if (accu->n >= 8) {

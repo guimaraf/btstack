@@ -50,9 +50,7 @@
 extern "C" {
 #endif
 
-/* API_START */
-
- /**
+/**
  * @brief Get HCI Dump POSIX FS Instance
  * @return hci_dump_impl
  */

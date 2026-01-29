@@ -83,7 +83,8 @@ extern "C" {
 // BLE
 #ifdef ENABLE_BLE
 #include "ble/gatt-service/battery_service_client.h"
-#include "ble/gatt-service/hids_host.h"
+#include "ble/gatt-service/hids_client.h"
+#include "ble/gatt-service/scan_parameters_service_client.h"
 #include "ble/gatt_client.h"
 #include "ble/sm.h"
 #endif
@@ -111,11 +112,6 @@ void btstack_memory_deinit(void);
 """
 
 hfile_header_end = """
-
-#ifdef ENABLE_MALLOC_TEST
-void btstack_memory_simulate_malloc_failure(bool out_of_memory);
-#endif
-
 #if defined __cplusplus
 }
 #endif
@@ -141,21 +137,11 @@ cfile_header_begin = """
 #include "btstack_memory_pool.h"
 #include "btstack_debug.h"
 
-#include <stddef.h>
 #include <stdlib.h>
 
 #ifdef ENABLE_MALLOC_TEST
-static bool mock_out_of_memory = false;
-void btstack_memory_simulate_malloc_failure(bool out_of_memory) {
-    mock_out_of_memory = out_of_memory;
-}
-static void *btstack_memory_mock_malloc(size_t size) {
-    if(mock_out_of_memory) {
-        return NULL;
-    }
-    return malloc(size);
-}
-#define malloc btstack_memory_mock_malloc
+void * test_malloc(size_t size);
+#define malloc test_malloc
 #endif
 
 #ifdef HAVE_MALLOC
@@ -247,7 +233,7 @@ STRUCT_NAME_t * btstack_memory_STRUCT_NAME_get(void){
 }
 void btstack_memory_STRUCT_NAME_free(STRUCT_NAME_t *STRUCT_NAME){
     UNUSED(STRUCT_NAME);
-}
+};
 #endif
 #elif defined(HAVE_MALLOC)
 
@@ -268,9 +254,8 @@ STRUCT_NAME_t * btstack_memory_STRUCT_NAME_get(void){
 }
 void btstack_memory_STRUCT_NAME_free(STRUCT_NAME_t *STRUCT_NAME){
     // reconstruct buffer start
-    btstack_memory_STRUCT_NAME_t *buffer = (btstack_memory_STRUCT_NAME_t *)
-        ((uint8_t *)STRUCT_NAME - offsetof(btstack_memory_STRUCT_NAME_t, data));
-    btstack_memory_tracking_remove(&buffer->tracking);
+    btstack_memory_buffer_t * buffer = &((btstack_memory_buffer_t *) STRUCT_NAME)[-1];
+    btstack_memory_tracking_remove(buffer);
     free(buffer);
 }
 #endif
@@ -307,7 +292,7 @@ list_of_classic_structs = [
     ["avrcp_browsing_connection"],   
 ]
 list_of_le_structs = [
-    ["battery_service_client", "gatt_client", "hids_host", "sm_lookup_entry", "whitelist_entry", "periodic_advertiser_list_entry"],
+    ["battery_service_client", "gatt_client", "hids_client", "scan_parameters_service_client", "sm_lookup_entry", "whitelist_entry", "periodic_advertiser_list_entry"],
 ]
 list_of_mesh_structs = [
     ['mesh_network_pdu', 'mesh_segmented_pdu', 'mesh_upper_transport_pdu', 'mesh_network_key', 'mesh_transport_key', 'mesh_virtual_address', 'mesh_subnet']
@@ -356,7 +341,7 @@ writeln(f, copyright)
 writeln(f, hfile_header_begin)
 add_structs(f, header_template)
 writeln(f, hfile_header_end)
-f.close()
+f.close();
 
 
 f = open(file_name+".c", "w")
@@ -367,7 +352,7 @@ add_structs(f, code_template)
 f.write(init_header)
 add_structs(f, init_template)
 writeln(f, "}")
-f.close()
+f.close();
     
 # also generate test code
 test_header = """
@@ -375,6 +360,14 @@ test_header = """
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// malloc hook
+static int simulate_no_memory;
+extern "C" void * test_malloc(size_t size);
+void * test_malloc(size_t size){
+    if (simulate_no_memory) return NULL;
+    return malloc(size);
+}
 
 #include "btstack_config.h"
 
@@ -389,9 +382,7 @@ test_header = """
 TEST_GROUP(btstack_memory){
     void setup(void){
         btstack_memory_init();
-#ifdef HAVE_MALLOC
-        btstack_memory_simulate_malloc_failure(false);
-#endif
+        simulate_no_memory = 0;
     }
 };
 
@@ -439,7 +430,7 @@ TEST(btstack_memory, STRUCT_NAME_GetAndFree){
 TEST(btstack_memory, STRUCT_NAME_NotEnoughBuffers){
     STRUCT_NAME_t * context;
 #ifdef HAVE_MALLOC
-    btstack_memory_simulate_malloc_failure(true);
+    simulate_no_memory = 1;
 #else
 #ifdef POOL_COUNT
     int i;

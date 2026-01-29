@@ -13,7 +13,7 @@ functionality will be interrupted.
 
 ## Compilation
 
-BTstack's FeeeBSD port does not have additional dependencies. To compile the cmake project with Make
+BTstack's FeeeBSD port does not have additional dependencies. To compile the cmake project with make
 
     mkdir build
     cd build
@@ -22,9 +22,9 @@ BTstack's FeeeBSD port does not have additional dependencies. To compile the cma
 
 or using Ninja:
 
-    mkdir build
-    cd build
-    cmake -G Ninja ..
+    mkdir ninja
+    cd ninja
+    cmake ..
     ninja
 
 ## Running the examples

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.5)
 
 project(qt-h4 LANGUAGES C CXX)
 
@@ -13,18 +13,33 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 message("${Qt5_DIR}")
 
-find_package(Qt5 COMPONENTS Widgets REQUIRED)
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
+# pkgconfig
+find_package(PkgConfig QUIET)
+
+# portaudio
+if (PkgConfig_FOUND)
+    pkg_check_modules(PORTAUDIO REQUIRED portaudio-2.0)
+    if(PORTAUDIO_FOUND)
+        message("HAVE_PORTAUDIO")
+        include_directories(${PORTAUDIO_INCLUDE_DIRS})
+        link_directories(${PORTAUDIO_LIBRARY_DIRS})
+        link_libraries(${PORTAUDIO_LIBRARIES})
+        # CMake 3.12 - add_compile_definitions(HAVE_PORTAUDIO)
+        SET(CMAKE_C_FLAGS  "-DHAVE_PORTAUDIO")
+    endif()
+endif()
+
+find_package(Qt5Core)
+find_package(FindPython3)
 
 # BTstack Root
-SET(BTSTACK_ROOT ${CMAKE_SOURCE_DIR}/../..)
+set(BTSTACK_ROOT "${PROJECT_SOURCE_DIR}/../..")
 message("BTSTACK_ROOT: ${BTSTACK_ROOT}")
 
 # BTstack include
 include_directories(${BTSTACK_ROOT}/3rd-party/micro-ecc)
 include_directories(${BTSTACK_ROOT}/3rd-party/bluedroid/decoder/include)
 include_directories(${BTSTACK_ROOT}/3rd-party/bluedroid/encoder/include)
-include_directories(${BTSTACK_ROOT}/3rd-party/lc3-google/include)
 include_directories(${BTSTACK_ROOT}/3rd-party/md5)
 include_directories(${BTSTACK_ROOT}/3rd-party/hxcmod-player)
 include_directories(${BTSTACK_ROOT}/3rd-party/hxcmod-player/mod)
@@ -49,7 +64,7 @@ file(GLOB SOURCES_SRC       "${BTSTACK_ROOT}/src/*.c" "${BTSTACK_ROOT}/example/s
 file(GLOB SOURCES_BLE       "${BTSTACK_ROOT}/src/ble/*.c")
 file(GLOB SOURCES_GATT      "${BTSTACK_ROOT}/src/ble/gatt-service/*.c")
 file(GLOB SOURCES_CLASSIC   "${BTSTACK_ROOT}/src/classic/*.c")
-file(GLOB SOURCES_MESH      "../../src/mesh/*.c" "../../src/mesh/gatt-service/*.c")
+file(GLOB SOURCES_MESH      "${BTSTACK_ROOT}/src/mesh/*.c")
 file(GLOB SOURCES_BLUEDROID "${BTSTACK_ROOT}/3rd-party/bluedroid/encoder/srce/*.c" "${BTSTACK_ROOT}/3rd-party/bluedroid/decoder/srce/*.c")
 file(GLOB SOURCES_MD5       "${BTSTACK_ROOT}/3rd-party/md5/md5.c")
 file(GLOB SOURCES_UECC      "${BTSTACK_ROOT}/3rd-party/micro-ecc/uECC.c")
@@ -117,17 +132,20 @@ file(GLOB SOURCES_BLE_OFF   "${BTSTACK_ROOT}/src/ble/le_device_db_memory.c")
 list(REMOVE_ITEM SOURCES_BLE ${SOURCES_BLE_OFF})
 
 
-# select files for H4 UART support
+# select POSIX vs Windows versions
 IF (WIN32)
-    message("Building for Windows with H4 UART")
-    include_directories(${BTSTACK_ROOT}/platform/windows)
-    file(GLOB SOURCES_WINDOWS "${BTSTACK_ROOT}/platform/windows/*.c")
+    message("Building for Windows using WinUSB")
+    set(SOURCES_HCI_USB ${BTSTACK_ROOT}/platform/windows/hci_transport_h2_winusb.c)
     set(SOURCES_STDIN   ${BTSTACK_ROOT}/platform/windows/btstack_stdin_windows.c)
+    link_libraries( winusb setupapi)
 ELSE()
-    message("Building for POSIX with H4 UART")
+    message("Building for POSIX using libusb")
+
+    set(SOURCES_HCI_USB ${BTSTACK_ROOT}/platform/libusb/hci_transport_h2_libusb.c)
+    set(SOURCES_STDIN   ${BTSTACK_ROOT}/platform/posix/btstack_stdin_posix.c ${BTSTACK_ROOT}/platform/posix/btstack_signal.c)
+
     list(APPEND SOURCES_POSIX ${BTSTACK_ROOT}/platform/posix/btstack_network_posix.c)
     list(APPEND SOURCES_POSIX ${BTSTACK_ROOT}/platform/posix/btstack_block_posix.c)
-    set(SOURCES_STDIN   ${BTSTACK_ROOT}/platform/posix/btstack_stdin_posix.c ${BTSTACK_ROOT}/platform/posix/btstack_signal.c)
 ENDIF()
 
 set(SOURCES
@@ -136,6 +154,7 @@ set(SOURCES
         ${SOURCES_BLUEDROID}
         ${SOURCES_POSIX}
         ${SOURCES_RIJNDAEL}
+        ${SOURCES_HCI_USB}
         ${SOURCES_STDIN}
         ${SOURCES_SRC}
         ${SOURCES_BLE}
@@ -145,42 +164,11 @@ set(SOURCES
         ${SOURCES_UECC}
         ${SOURCES_HXCMOD}
         ${SOURCES_CHIPSET}
-        ${SOURCES_WINDOWS}
 )
 list(SORT SOURCES)
 
 # create static lib
-add_library(btstack STATIC ${SOURCES})
-
-# pkgconfig
-find_package(PkgConfig QUIET)
-
-# link libraries for H4 UART support
-IF (WIN32)
-    target_link_libraries(btstack setupapi)
-ELSE()
-    # find pkgconfig
-    find_package(PkgConfig REQUIRED)
-
-    # libusb
-    pkg_check_modules(LIBUSB REQUIRED libusb-1.0)
-    target_include_directories(btstack PUBLIC ${LIBUSB_INCLUDE_DIRS})
-    target_link_directories(btstack PUBLIC ${LIBUSB_LIBRARY_DIRS})
-    target_link_libraries(btstack ${LIBUSB_LIBRARIES})
-ENDIF()
-
-# portaudio
-if (PkgConfig_FOUND)
-    pkg_check_modules(PORTAUDIO REQUIRED portaudio-2.0)
-    if(PORTAUDIO_FOUND)
-        message("HAVE_PORTAUDIO")
-        target_include_directories(btstack PUBLIC ${PORTAUDIO_INCLUDE_DIRS})
-        target_link_directories(btstack PUBLIC ${PORTAUDIO_LIBRARY_DIRS})
-        target_link_libraries(btstack ${PORTAUDIO_LIBRARIES})
-        add_compile_definitions(HAVE_PORTAUDIO)
-        SET(CMAKE_C_FLAGS  "-DHAVE_PORTAUDIO")
-    endif()
-endif()
+add_library(btstack-lib STATIC ${SOURCES})
 
 # create targets for all examples
 file(GLOB EXAMPLES_C    "${BTSTACK_ROOT}/example/*.c")
@@ -197,32 +185,32 @@ set (LWIP_EXAMPLES pan_lwip_http_server)
 
 # create targets
 foreach(EXAMPLE_FILE ${EXAMPLES_C})
-    get_filename_component(EXAMPLE ${EXAMPLE_FILE} NAME_WE)
-    set (SOURCES_EXAMPLE ${EXAMPLE_FILE})
+        get_filename_component(EXAMPLE ${EXAMPLE_FILE} NAME_WE)
+        set (SOURCES_EXAMPLE ${EXAMPLE_FILE})
 
-    # add qt main.cpp and run loop
-    list(APPEND SOURCES_EXAMPLE ${BTSTACK_ROOT}/platform/qt/btstack_run_loop_qt.cpp main.cpp)
+        # add qt main.cpp and run loop
+        list(APPEND SOURCES_EXAMPLE ${BTSTACK_ROOT}/platform/qt/btstack_run_loop_qt.cpp main.cpp)
 
-    # add lwip sources for lwip examples
-    if ( "${LWIP_EXAMPLES}" MATCHES ${EXAMPLE} )
-        list(APPEND SOURCES_EXAMPLE ${SOURCES_LWIP})
-    endif()
+        # add lwip sources for lwip examples
+        if ( "${LWIP_EXAMPLES}" MATCHES ${EXAMPLE} )
+                list(APPEND SOURCES_EXAMPLE ${SOURCES_LWIP})
+        endif()
 
-    # add GATT DB creation
-    if ( "${EXAMPLES_GATT}" MATCHES ${EXAMPLE} )
-        message("example ${EXAMPLE} -- with GATT DB")
-        add_custom_command(
+        # add GATT DB creation
+        if ( "${EXAMPLES_GATT}" MATCHES ${EXAMPLE} )
+                message("example ${EXAMPLE} -- with GATT DB")
+                add_custom_command(
                     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${EXAMPLE}.h
                         COMMAND  ${PYTHON_EXECUTABLE}
                         ARGS ${BTSTACK_ROOT}/tool/compile_gatt.py ${BTSTACK_ROOT}/example/${EXAMPLE}.gatt ${CMAKE_CURRENT_BINARY_DIR}/${EXAMPLE}.h
                 )
-        list(APPEND SOURCES_EXAMPLE ${CMAKE_CURRENT_BINARY_DIR}/${EXAMPLE}.h)
+                list(APPEND SOURCES_EXAMPLE ${CMAKE_CURRENT_BINARY_DIR}/${EXAMPLE}.h)
 
-        # generated file does not need AUTOMOC and AUOUIC processing
-        set_property(SOURCE {CMAKE_CURRENT_BINARY_DIR}/${EXAMPLE}.h PROPERTY SKIP_AUTOGEN ON)
-    else()
-        message("example ${EXAMPLE}")
-    endif()
-    add_executable(${EXAMPLE} ${SOURCES_EXAMPLE} )
-    target_link_libraries(${EXAMPLE} btstack Qt5::Core)
+                # generated file does not need AUTOMOC and AUOUIC processing
+                set_property(SOURCE {CMAKE_CURRENT_BINARY_DIR}/${EXAMPLE}.h PROPERTY SKIP_AUTOGEN ON)
+        else()
+                message("example ${EXAMPLE}")
+        endif()
+        add_executable(${EXAMPLE} ${SOURCES_EXAMPLE} )
+        target_link_libraries(${EXAMPLE} btstack-lib Qt5::Core)
 endforeach(EXAMPLE_FILE)

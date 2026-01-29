@@ -117,7 +117,7 @@ uint8_t avrcp_target_support_event(uint16_t avrcp_cid, avrcp_notification_event_
  * @param song_position_ms
  * @return status ERROR_CODE_UNKNOWN_CONNECTION_IDENTIFIER if connection is not found, otherwise ERROR_CODE_SUCCESS
  */
-uint8_t avrcp_target_play_status(uint16_t avrcp_cid, uint32_t song_length_ms, uint32_t song_position_ms, avrcp_playback_status_t status);
+uint8_t avrcp_target_play_status(uint16_t avrcp_cid, uint32_t song_length_ms, uint32_t song_position_ms, avrcp_playback_status_t status); 
 
 /**
  * @brief Set Now Playing Info that is send to Controller if notifications are enabled
@@ -236,10 +236,6 @@ uint8_t avrcp_target_operation_accepted(uint16_t avrcp_cid, avrcp_operation_id_t
  * @return status ERROR_CODE_UNKNOWN_CONNECTION_IDENTIFIER if connection is not found, otherwise ERROR_CODE_SUCCESS
  */
 uint8_t avrcp_target_operation_not_implemented(uint16_t avrcp_cid, avrcp_operation_id_t opid, uint8_t operands_length, uint8_t operand);
-
-uint8_t avrcp_target_uids_changed(uint16_t avrcp_cid, uint16_t uid_counter);
-uint8_t avrcp_target_send_response_for_play_item_cmd(uint16_t avrcp_cid, avrcp_status_code_t status);
-uint8_t avrcp_target_send_response_for_add_to_now_playing_cmd(uint16_t avrcp_cid, avrcp_status_code_t status);
 
 /**
  * @brief De-Init AVRCP Browsing Target

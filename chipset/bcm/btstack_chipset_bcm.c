@@ -52,9 +52,6 @@
 #include "btstack_control.h"
 #include "btstack_debug.h"
 #include "btstack_chipset_bcm.h"
-
-#include <btstack_ltv_builder.h>
-
 #include "hci.h"
 
 #ifdef HAVE_POSIX_FILE_IO
@@ -65,9 +62,6 @@
 #ifdef _MSC_VER
 // ignore deprecated warning for fopen
 #pragma warning(disable : 4996)
-
-// map strncasecmp
-#define strncasecmp _strnicmp
 #endif
 
 // assert outgoing and incoming hci packet buffers can hold max hci command resp. event packet
@@ -79,7 +73,14 @@
 #endif
 
 static int send_download_command;
-static int32_t init_script_offset;
+static uint32_t init_script_offset;
+
+// Embedded == non posix systems
+
+// actual init script provided by separate bt_firmware_image.c from WICED SDK
+extern const uint8_t brcm_patchram_buf[];
+extern const int     brcm_patch_ram_length;
+extern const char    brcm_patch_version[];
 
 //
 // @note: Broadcom chips require higher UART clock for baud rate > 3000000 -> limit baud rate in hci.c
@@ -109,7 +110,6 @@ static char matched_file[1000];
 
 
 static void chipset_init(const void * config){
-    UNUSED(config);
     if (hcd_file_path){
         log_info("chipset-bcm: init file %s", hcd_file_path);
     } else {
@@ -156,7 +156,7 @@ static btstack_chipset_result_t chipset_next_command(uint8_t * hci_cmd_buffer){
         init_script_offset += 3;
 
         // read parameters
-        size_t param_len = hci_cmd_buffer[2];
+        int param_len = hci_cmd_buffer[2];
         if (param_len){
             bytes_read = fread(&hci_cmd_buffer[3], 1, param_len, hcd_file);
         }
@@ -188,7 +188,7 @@ void btstack_chipset_bcm_set_device_name(const char * device_name){
     }
 
     // find in folder
-    tinydir_dir dir = {};
+    tinydir_dir dir = { 0 };
     int res = tinydir_open(&dir, hcd_folder_path);
     if (res < 0){
         log_error("chipset-bcm: could not get directory for %s", hcd_folder_path);
@@ -214,7 +214,6 @@ void btstack_chipset_bcm_set_device_name(const char * device_name){
             btstack_strcat(matched_file, sizeof(matched_file), "/");
             btstack_strcat(matched_file, sizeof(matched_file), file.name);
             hcd_file_path = matched_file;
-            log_info("PatchRAM: %s", hcd_file_path);
             break;
         }
     }
@@ -227,7 +226,6 @@ void btstack_chipset_bcm_set_device_name(const char * device_name){
 #else
 
 static void chipset_init(const void * config){
-    UNUSED(config);
     log_info("chipset-bcm: init script %s, len %u", brcm_patch_version, brcm_patch_ram_length);
     init_script_offset = 0;
     send_download_command = 1;
@@ -281,54 +279,4 @@ void btstack_chipset_bcm_enable_init_script(int enabled){
     } else {
         btstack_chipset_bcm.next_command = NULL;
     }
-}
-
-// Other lmp_subversion values:
-// 0x220c - CYW20819
-// 0x420e - CYW20719
-const char * btstack_chipset_bcm_identify_controller(uint16_t lmp_subversion) {
-    const char * device_name = NULL;
-    switch (lmp_subversion){
-        case 0x2119:
-            // CYW4373W
-            device_name = "BCM4373A0";
-            break;
-        case 0x220b:
-            // CYW20706
-            device_name = "BCM20703A2";
-            break;
-        case 0x2220:
-            // CYW5551x
-            device_name = "CYW55500A1";
-            break;
-        case 0x2257:
-            // CYW5557x
-            device_name = "CYW55560A1";
-            break;
-        default:
-            break;
-    }
-    return device_name;
-}
-
-uint8_t btstack_chipset_bcm_create_lc3_offloading_config(
-    uint8_t * buffer,
-    uint8_t size,
-    uint16_t sampling_frequency_hz,
-    btstack_lc3_frame_duration_t frame_duration,
-    uint16_t octets_per_frame) {
-
-    btstack_ltv_builder_context_t context;
-    btstack_ltv_builder_init(&context, buffer, size);
-    // sampling frequency
-    btstack_ltv_builder_add_tag(&context, 0x01);
-    btstack_ltv_builder_add_08(&context, 1 << ((sampling_frequency_hz / 8000) - 1));
-    // frame duration
-    btstack_ltv_builder_add_tag(&context, 0x02);
-    btstack_ltv_builder_add_08(&context, (frame_duration == BTSTACK_LC3_FRAME_DURATION_7500US) ? 0x01 : 0x02);
-    // set codec frame length
-    btstack_ltv_builder_add_tag(&context, 0x04);
-    btstack_ltv_builder_add_little_endian_16(&context, octets_per_frame);
-
-    return btstack_ltv_builder_get_length(&context);
 }

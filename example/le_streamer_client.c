@@ -52,46 +52,35 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "btstack.h"
 
-#define LE_STREAMER_SERVICE_CLIENT_NUM_CHARACTERISTICS 1
-
 typedef struct {
-    gatt_service_client_connection_t basic_connection;
-    gatt_service_client_characteristic_t characteristics_storage[LE_STREAMER_SERVICE_CLIENT_NUM_CHARACTERISTICS];
-    btstack_context_callback_registration_t write_without_response_request;
-
     char name;
     int le_notification_enabled;
     int  counter;
     char test_data[200];
-    uint16_t test_data_len;
+    int  test_data_len;
     uint32_t test_data_sent;
-    uint32_t test_data_received;
     uint32_t test_data_start;
-} le_streamer_client_connection_t;
+    btstack_context_callback_registration_t write_without_response_request;
+} le_streamer_connection_t;
 
 typedef enum {
     TC_OFF,
     TC_IDLE,
     TC_W4_SCAN_RESULT,
     TC_W4_CONNECT,
-    TC_W4_SERVICE_CONNECTED,
+    TC_W4_SERVICE_RESULT,
+    TC_W4_CHARACTERISTIC_RX_RESULT,
+    TC_W4_CHARACTERISTIC_TX_RESULT,
+    TC_W4_ENABLE_NOTIFICATIONS_COMPLETE,
     TC_W4_TEST_DATA
 } gc_state_t;
 
-// On the GATT Server, RX Characteristic is used for receive data via Write, and TX Characteristic is used to send data via Notifications
-static const uuid128_t LE_STREAMER_SERVICE_UUID           = { 0x00, 0x00, 0xFF, 0x10, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0x80, 0x5F, 0x9B, 0x34, 0xFB};
-static const uuid128_t le_streamer_uuid128s[LE_STREAMER_SERVICE_CLIENT_NUM_CHARACTERISTICS] = {
-        { 0x00, 0x00, 0xFF, 0x11, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0x80, 0x5F, 0x9B, 0x34, 0xFB}, // rx + tx
-};
-
 static char *const le_streamer_server_name = "LE Streamer";
-static gatt_service_client_t le_streamer_client;
-static le_streamer_client_connection_t le_streamer_client_connection;
-
 static bd_addr_t cmdline_addr;
 static int cmdline_addr_found = 0;
 
@@ -100,12 +89,26 @@ static bd_addr_t      le_streamer_addr;
 static bd_addr_type_t le_streamer_addr_type;
 
 static hci_con_handle_t connection_handle;
-static gc_state_t state = TC_OFF;
 
+// On the GATT Server, RX Characteristic is used for receive data via Write, and TX Characteristic is used to send data via Notifications
+static uint8_t le_streamer_service_uuid[16]           = { 0x00, 0x00, 0xFF, 0x10, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0x80, 0x5F, 0x9B, 0x34, 0xFB};
+static uint8_t le_streamer_characteristic_rx_uuid[16] = { 0x00, 0x00, 0xFF, 0x11, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0x80, 0x5F, 0x9B, 0x34, 0xFB};
+static uint8_t le_streamer_characteristic_tx_uuid[16] = { 0x00, 0x00, 0xFF, 0x12, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0x80, 0x5F, 0x9B, 0x34, 0xFB};
+
+static gatt_client_service_t le_streamer_service;
+static gatt_client_characteristic_t le_streamer_characteristic_rx;
+static gatt_client_characteristic_t le_streamer_characteristic_tx;
+
+static gatt_client_notification_t notification_listener;
+static int listener_registered;
+
+static gc_state_t state = TC_OFF;
 static btstack_packet_callback_registration_t hci_event_callback_registration;
+
+// prototypes
+static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
 static void le_streamer_handle_can_write_without_response(void * context);
-static void le_streamer_client_request_to_send(le_streamer_client_connection_t * connection);
-static void le_streamer_client_connection_and_notification_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
+static void le_streamer_client_request_to_send(le_streamer_connection_t * connection);
 
 /*
  * @section Track throughput
@@ -117,43 +120,62 @@ static void le_streamer_client_connection_and_notification_handler(uint8_t packe
 /* LISTING_START(tracking): Tracking throughput */
 
 #define TEST_MODE_WRITE_WITHOUT_RESPONSE 1
+#define TEST_MODE_ENABLE_NOTIFICATIONS   2
 #define TEST_MODE_DUPLEX                 3
 
 // configure test mode: send only, receive only, full duplex
 #define TEST_MODE TEST_MODE_DUPLEX
 
-#define REPORT_INTERVAL_MS 1000
+#define REPORT_INTERVAL_MS 3000
 
-static void test_reset(le_streamer_client_connection_t * context){
+// support for multiple clients
+static le_streamer_connection_t le_streamer_connection;
+
+static void test_reset(le_streamer_connection_t * context){
     context->test_data_start = btstack_run_loop_get_time_ms();
     context->test_data_sent = 0;
-    context->test_data_received = 0;
 }
 
-static void test_track_data(le_streamer_client_connection_t * context, uint32_t bytes_sent, uint32_t bytes_received){
-    context->test_data_sent     += bytes_sent;
-    context->test_data_received += bytes_received;
-
-    // report
+static void test_track_data(le_streamer_connection_t * context, int bytes_sent){
+    context->test_data_sent += bytes_sent;
+    // evaluate
     uint32_t now = btstack_run_loop_get_time_ms();
     uint32_t time_passed = now - context->test_data_start;
     if (time_passed < REPORT_INTERVAL_MS) return;
-
-    // print throughput
-    int bytes_per_second_sent     = context->test_data_sent     * 1000 / time_passed;
-    int bytes_per_second_received = context->test_data_received * 1000 / time_passed;
-    int bytes_per_second_total = bytes_per_second_sent + bytes_per_second_received;
-    printf("%c: Sent %u.%03u kB/s, Received %u.%03u kB/s => Total %u.%03u kB/s\n", context->name,
-        bytes_per_second_sent     / 1000, bytes_per_second_sent     % 1000,
-        bytes_per_second_received / 1000, bytes_per_second_received % 1000,
-        bytes_per_second_total    / 1000, bytes_per_second_total    % 1000);
+    // print speed
+    int bytes_per_second = context->test_data_sent * 1000 / time_passed;
+    printf("%c: %"PRIu32" bytes -> %u.%03u kB/s\n", context->name, context->test_data_sent, bytes_per_second / 1000, bytes_per_second % 1000);
 
     // restart
-    test_reset(context);
+    context->test_data_start = now;
+    context->test_data_sent  = 0;
 }
 /* LISTING_END(tracking): Tracking throughput */
 
-static void le_streamer_client_request_to_send(le_streamer_client_connection_t * connection){
+
+// streamer
+static void le_streamer_handle_can_write_without_response(void * context){
+    le_streamer_connection_t * connection = (le_streamer_connection_t *) context;
+
+    // create test data
+    connection->counter++;
+    if (connection->counter > 'Z') connection->counter = 'A';
+    memset(connection->test_data, connection->counter, connection->test_data_len);
+
+    // send
+    uint8_t status = gatt_client_write_value_of_characteristic_without_response(connection_handle, le_streamer_characteristic_rx.value_handle, connection->test_data_len, (uint8_t*) connection->test_data);
+    if (status){
+        printf("Write without response failed, status 0x%02x.\n", status);
+        return;
+    } else {
+        test_track_data(connection, connection->test_data_len);
+    }
+
+    // request again
+    le_streamer_client_request_to_send(connection);
+}
+
+static void le_streamer_client_request_to_send(le_streamer_connection_t * connection){
     connection->write_without_response_request.callback = &le_streamer_handle_can_write_without_response;
     connection->write_without_response_request.context = connection;
     gatt_client_request_to_write_without_response(&connection->write_without_response_request, connection_handle);
@@ -184,6 +206,139 @@ static bool advertisement_contains_name(const char * name, uint8_t adv_len, cons
     return false;
 }
 
+static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
+    UNUSED(packet_type);
+    UNUSED(channel);
+    UNUSED(size);
+
+    uint16_t mtu;
+    uint8_t att_status;
+    switch(state){
+        case TC_W4_SERVICE_RESULT:
+            switch(hci_event_packet_get_type(packet)){
+                case GATT_EVENT_SERVICE_QUERY_RESULT:
+                    // store service (we expect only one)
+                    gatt_event_service_query_result_get_service(packet, &le_streamer_service);
+                    break;
+                case GATT_EVENT_QUERY_COMPLETE:
+                    att_status = gatt_event_query_complete_get_att_status(packet);
+                    if (att_status != ATT_ERROR_SUCCESS){
+                        printf("SERVICE_QUERY_RESULT, ATT Error 0x%02x.\n", att_status);
+                        gap_disconnect(connection_handle);
+                        break;  
+                    } 
+                    // service query complete, look for characteristic
+                    state = TC_W4_CHARACTERISTIC_RX_RESULT;
+                    printf("Search for LE Streamer RX characteristic.\n");
+                    gatt_client_discover_characteristics_for_service_by_uuid128(handle_gatt_client_event, connection_handle, &le_streamer_service, le_streamer_characteristic_rx_uuid);
+                    break;
+                default:
+                    break;
+            }
+            break;
+            
+        case TC_W4_CHARACTERISTIC_RX_RESULT:
+            switch(hci_event_packet_get_type(packet)){
+                case GATT_EVENT_CHARACTERISTIC_QUERY_RESULT:
+                    gatt_event_characteristic_query_result_get_characteristic(packet, &le_streamer_characteristic_rx);
+                    break;
+                case GATT_EVENT_QUERY_COMPLETE:
+                    att_status = gatt_event_query_complete_get_att_status(packet);
+                    if (att_status != ATT_ERROR_SUCCESS){
+                        printf("CHARACTERISTIC_QUERY_RESULT, ATT Error 0x%02x.\n", att_status);
+                        gap_disconnect(connection_handle);
+                        break;  
+                    } 
+                    // rx characteristiic found, look for tx characteristic
+                    state = TC_W4_CHARACTERISTIC_TX_RESULT;
+                    printf("Search for LE Streamer TX characteristic.\n");
+                    gatt_client_discover_characteristics_for_service_by_uuid128(handle_gatt_client_event, connection_handle, &le_streamer_service, le_streamer_characteristic_tx_uuid);
+                    break;
+                default:
+                    break;
+            }
+            break;
+
+        case TC_W4_CHARACTERISTIC_TX_RESULT:
+            switch(hci_event_packet_get_type(packet)){
+                case GATT_EVENT_CHARACTERISTIC_QUERY_RESULT:
+                    gatt_event_characteristic_query_result_get_characteristic(packet, &le_streamer_characteristic_tx);
+                    break;
+                case GATT_EVENT_QUERY_COMPLETE:
+                    att_status = gatt_event_query_complete_get_att_status(packet);
+                    if (att_status != ATT_ERROR_SUCCESS){
+                        printf("CHARACTERISTIC_QUERY_RESULT, ATT Error 0x%02x.\n", att_status);
+                        gap_disconnect(connection_handle);
+                        break;  
+                    } 
+                    // register handler for notifications
+                    listener_registered = 1;
+                    gatt_client_listen_for_characteristic_value_updates(&notification_listener, handle_gatt_client_event, connection_handle, &le_streamer_characteristic_tx);
+                    // setup tracking
+                    le_streamer_connection.name = 'A';
+                    le_streamer_connection.test_data_len = ATT_DEFAULT_MTU - 3;
+                    test_reset(&le_streamer_connection);
+                    gatt_client_get_mtu(connection_handle, &mtu);
+                    le_streamer_connection.test_data_len = btstack_min(mtu - 3, sizeof(le_streamer_connection.test_data));
+                    printf("%c: ATT MTU = %u => use test data of len %u\n", le_streamer_connection.name, mtu, le_streamer_connection.test_data_len);
+                    // enable notifications
+#if (TEST_MODE & TEST_MODE_ENABLE_NOTIFICATIONS)
+                    printf("Start streaming - enable notify on test characteristic.\n");
+                    state = TC_W4_ENABLE_NOTIFICATIONS_COMPLETE;
+                    gatt_client_write_client_characteristic_configuration(handle_gatt_client_event, connection_handle,
+                        &le_streamer_characteristic_tx, GATT_CLIENT_CHARACTERISTICS_CONFIGURATION_NOTIFICATION);
+                    break;
+#endif
+                    state = TC_W4_TEST_DATA;
+#if (TEST_MODE & TEST_MODE_WRITE_WITHOUT_RESPONSE)
+                    printf("Start streaming - request can send now.\n");
+                    le_streamer_client_request_to_send(&le_streamer_connection);
+#endif
+                    break;
+                default:
+                    break;
+            }
+            break;
+
+        case TC_W4_ENABLE_NOTIFICATIONS_COMPLETE:
+            switch(hci_event_packet_get_type(packet)){
+                case GATT_EVENT_QUERY_COMPLETE:
+                    printf("Notifications enabled, ATT status 0x%02x\n", gatt_event_query_complete_get_att_status(packet));
+                    if (gatt_event_query_complete_get_att_status(packet) != ATT_ERROR_SUCCESS) break;
+                    state = TC_W4_TEST_DATA;
+#if (TEST_MODE & TEST_MODE_WRITE_WITHOUT_RESPONSE)
+                    printf("Start streaming - request can send now.\n");
+                    le_streamer_client_request_to_send(&le_streamer_connection);
+#endif
+                    break;
+                default:
+                    break;
+            }
+            break;
+
+        case TC_W4_TEST_DATA:
+            switch(hci_event_packet_get_type(packet)){
+                case GATT_EVENT_NOTIFICATION:
+                    test_track_data(&le_streamer_connection, gatt_event_notification_get_value_length(packet));
+                    break;
+                case GATT_EVENT_QUERY_COMPLETE:
+                    break;
+                case GATT_EVENT_CAN_WRITE_WITHOUT_RESPONSE:
+                    le_streamer_handle_can_write_without_response(&le_streamer_connection);
+                    break;
+                default:
+                    printf("Unknown packet type 0x%02x\n", hci_event_packet_get_type(packet));
+                    break;
+            }
+            break;
+
+        default:
+            printf("error\n");
+            break;
+    }
+    
+}
+
 // Either connect to remote specified on command line or start scan for device with "LE Streamer" in advertisement
 static void le_streamer_client_start(void){
     if (cmdline_addr_found){
@@ -206,26 +361,6 @@ static void le_stream_server_found(void) {
     gap_connect(le_streamer_addr,le_streamer_addr_type);
 }
 
-// streamer
-static void le_streamer_handle_can_write_without_response(void * context){
-    le_streamer_client_connection_t * connection = (le_streamer_client_connection_t *) context;
-
-    // create test data
-    connection->counter++;
-    if (connection->counter > 'Z') connection->counter = 'A';
-    memset(connection->test_data, connection->counter, connection->test_data_len);
-
-    uint8_t status = gatt_client_write_value_of_characteristic_without_response(connection_handle, connection->characteristics_storage[0].value_handle, connection->test_data_len, (uint8_t*) connection->test_data);
-    if (status){
-        printf("Write without response failed, status 0x%02x.\n", status);
-        return;
-    } else {
-        test_track_data(connection, connection->test_data_len, 0);
-    }
-    // request again
-    le_streamer_client_request_to_send(connection);
-}
-
 static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
     UNUSED(channel);
     UNUSED(size);
@@ -240,7 +375,6 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
     hci_con_handle_t con_handle;
     const uint8_t * adv_data;
     uint8_t         adv_len;
-    uint8_t status;
 
     switch (hci_event_packet_get_type(packet)) {
         case BTSTACK_EVENT_STATE:
@@ -288,28 +422,24 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         case HCI_EVENT_META_GAP:
             switch (hci_event_gap_meta_get_subevent_code(packet)) {
                 case GAP_SUBEVENT_LE_CONNECTION_COMPLETE:
-                    if (state != TC_W4_CONNECT) return;
-                    connection_handle = gap_subevent_le_connection_complete_get_connection_handle(packet);
-                    // print connection parameters (without using float operations)
-                    conn_interval = gap_subevent_le_connection_complete_get_conn_interval(packet);
-                    printf("Connection Interval: %u.%02u ms\n", conn_interval * 125 / 100, 25 * (conn_interval & 3));
-                    printf("Connection Latency: %u\n", gap_subevent_le_connection_complete_get_conn_latency(packet));
-                    // initialize gatt client context with handle, and add it to the list of active clients
-                    // query primary services
-                    printf("Search for LE Streamer service .\n");
-                    state = TC_W4_SERVICE_CONNECTED;
-                    status = gatt_service_client_connect_primary_service_with_uuid128(connection_handle, &le_streamer_client, &le_streamer_client_connection.basic_connection,
-                                                                                              &LE_STREAMER_SERVICE_UUID, &le_streamer_client_connection.characteristics_storage[0],
-                                                                                              LE_STREAMER_SERVICE_CLIENT_NUM_CHARACTERISTICS);
-                    if (status != ERROR_CODE_SUCCESS){
-                        state = TC_OFF;
-                        gap_disconnect(connection_handle);
-                        printf("GATT Service Client connection failed %02x\n", status);
-                    } else {
-                        printf("GATT Service Client discovery process started\n");
+                    switch (hci_event_gap_meta_get_subevent_code(packet)) {
+                        case GAP_SUBEVENT_LE_CONNECTION_COMPLETE:
+                            if (state != TC_W4_CONNECT) return;
+                            connection_handle = gap_subevent_le_connection_complete_get_connection_handle(packet);
+                            // print connection parameters (without using float operations)
+                            conn_interval = gap_subevent_le_connection_complete_get_conn_interval(packet);
+                            printf("Connection Interval: %u.%02u ms\n", conn_interval * 125 / 100, 25 * (conn_interval & 3));
+                            printf("Connection Latency: %u\n", gap_subevent_le_connection_complete_get_conn_latency(packet));
+                            // initialize gatt client context with handle, and add it to the list of active clients
+                            // query primary services
+                            printf("Search for LE Streamer service.\n");
+                            state = TC_W4_SERVICE_RESULT;
+                            gatt_client_discover_primary_services_by_uuid128(handle_gatt_client_event, connection_handle, le_streamer_service_uuid);
+                            break;
+                        default:
+                            break;
                     }
                     break;
-
                 default:
                     break;
             }
@@ -324,68 +454,29 @@ static void hci_event_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
                 case HCI_SUBEVENT_LE_PHY_UPDATE_COMPLETE:
                     con_handle = hci_subevent_le_phy_update_complete_get_connection_handle(packet);
                     printf("- LE Connection 0x%04x: PHY update - using LE %s PHY now\n", con_handle,
-                           phy_names[hci_subevent_le_phy_update_complete_get_tx_phy(packet) - 1]);
+                           phy_names[hci_subevent_le_phy_update_complete_get_tx_phy(packet)]);
                     break;
                 default:
                     break;
             }
             break;
+        case HCI_EVENT_DISCONNECTION_COMPLETE:
+            // unregister listener
+            connection_handle = HCI_CON_HANDLE_INVALID;
+            if (listener_registered){
+                listener_registered = 0;
+                gatt_client_stop_listening_for_characteristic_value_updates(&notification_listener);
+            }
+            if (cmdline_addr_found){
+                printf("Disconnected %s\n", bd_addr_to_str(cmdline_addr));
+                return;
+            }
+            printf("Disconnected %s\n", bd_addr_to_str(le_streamer_addr));
+            if (state == TC_OFF) break;
+            le_streamer_client_start();
+            break;
         default:
             break;
-    }
-}
-
-static void le_streamer_client_connection_and_notification_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
-    UNUSED(channel);
-    UNUSED(size);
-
-    if (packet_type != HCI_EVENT_PACKET) return;
-
-    if (hci_event_packet_get_type(packet) == HCI_EVENT_GATTSERVICE_META) {
-        switch (hci_event_gattservice_meta_get_subevent_code(packet)) {
-            case GATTSERVICE_SUBEVENT_CLIENT_CONNECTED: {
-                uint16_t cid = gattservice_subevent_client_connected_get_cid(packet);
-                le_streamer_client_connection_t *connection = (le_streamer_client_connection_t *) gatt_service_client_get_connection_for_cid(&le_streamer_client, cid);
-                btstack_assert(connection != NULL);
-
-                uint8_t status = gattservice_subevent_client_connected_get_status(packet);
-                if (status != ERROR_CODE_SUCCESS) {
-                    printf("Finalize connection\n");
-                    state = TC_OFF;
-                    gap_disconnect(connection->basic_connection.con_handle);
-                    return;
-                }
-
-                uint16_t mtu;
-                connection->name = 'A';
-                connection->test_data_len = ATT_DEFAULT_MTU - 3;
-                test_reset(connection);
-                gatt_client_get_mtu(connection_handle, &mtu);
-                connection->test_data_len = btstack_min(mtu - 3, sizeof(connection->test_data));
-                printf("%c: ATT MTU = %u => use test data of len %u\n", connection->name, mtu, connection->test_data_len);
-                state = TC_W4_TEST_DATA;
-#if (TEST_MODE & TEST_MODE_WRITE_WITHOUT_RESPONSE)
-                printf("Start streaming - request can send now.\n");
-                le_streamer_client_request_to_send(connection);
-#endif
-                break;
-            }
-            case GATTSERVICE_SUBEVENT_CLIENT_DISCONNECTED:
-                connection_handle = HCI_CON_HANDLE_INVALID;
-                printf("Disconnected %s\n", bd_addr_to_str(le_streamer_addr));
-                if (state == TC_OFF) break;
-                le_streamer_client_start();
-                break;
-            default:
-                break;
-        }
-    }
-
-    if (hci_event_packet_get_type(packet) == GATT_EVENT_NOTIFICATION) {
-        uint16_t cid = gatt_event_notification_get_connection_id(packet);
-        le_streamer_client_connection_t * connection = (le_streamer_client_connection_t *) gatt_service_client_get_connection_for_cid(&le_streamer_client, cid);
-        btstack_assert(connection != NULL);
-        test_track_data(connection, 0, gatt_event_notification_get_value_length(packet));
     }
 }
 
@@ -401,23 +492,19 @@ int btstack_main(int argc, const char * argv[]);
 int btstack_main(int argc, const char * argv[]){
 
 #ifdef HAVE_BTSTACK_STDIN
-    int arg;
+    int arg = 1;
     cmdline_addr_found = 0;
     
-    for (arg = 1; arg < argc; arg++) {
+    while (arg < argc) {
         if(!strcmp(argv[arg], "-a") || !strcmp(argv[arg], "--address")){
-            if (arg + 1 < argc) {
-                arg++;
-                cmdline_addr_found = sscanf_bd_addr(argv[arg], cmdline_addr);
-            }
-            if (!cmdline_addr_found) {
-                usage(argv[0]);
-                return 1;
-            }
+            arg++;
+            cmdline_addr_found = sscanf_bd_addr(argv[arg], cmdline_addr);
+            arg++;
+            if (!cmdline_addr_found) exit(1);
+            continue;
         }
-    }
-    if (!cmdline_addr_found) {
-        fprintf(stderr, "No specific address specified or found; start scanning for 'LE Streamer' advertisement.\n");
+        usage(argv[0]);
+        return 0;
     }
 #else
     (void)argc;
@@ -430,8 +517,6 @@ int btstack_main(int argc, const char * argv[]){
 
     // sm_init needed before gatt_client_init
     gatt_client_init();
-    gatt_service_client_init();
-    gatt_service_client_register_client_with_uuid128s(&le_streamer_client, &le_streamer_client_connection_and_notification_handler, &le_streamer_uuid128s[0], LE_STREAMER_SERVICE_CLIENT_NUM_CHARACTERISTICS);
 
     hci_event_callback_registration.callback = &hci_event_handler;
     hci_add_event_handler(&hci_event_callback_registration);
@@ -446,6 +531,7 @@ int btstack_main(int argc, const char * argv[]){
 
     // turn on!
     hci_power_control(HCI_POWER_ON);
+
     return 0;
 }
 /* EXAMPLE_END */

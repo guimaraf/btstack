@@ -169,8 +169,8 @@ static void hid_handle_input_report(uint8_t service_index, const uint8_t * repor
 
         default:
             btstack_hid_parser_init(&parser, 
-                hids_host_descriptor_storage_get_descriptor_data(hids_cid, service_index), 
-                hids_host_descriptor_storage_get_descriptor_len(hids_cid, service_index), 
+                hids_client_descriptor_storage_get_descriptor_data(hids_cid, service_index), 
+                hids_client_descriptor_storage_get_descriptor_len(hids_cid, service_index), 
                 HID_REPORT_TYPE_INPUT, report, report_len);
             break;
 
@@ -185,10 +185,10 @@ static void hid_handle_input_report(uint8_t service_index, const uint8_t * repor
         uint16_t usage;
         int32_t  value;
         btstack_hid_parser_get_field(&parser, &usage_page, &usage, &value);
-        if (usage_page != HID_USAGE_PAGE_KEYBOARD) continue;
+        if (usage_page != 0x07) continue;   
         switch (usage){
-            case HID_USAGE_KEY_KEYBOARD_LEFTSHIFT:
-            case HID_USAGE_KEY_KEYBOARD_RIGHTSHIFT:
+            case 0xe1:
+            case 0xe6:
                 if (value){
                     shift = 1;
                 }
@@ -224,7 +224,6 @@ static void hid_handle_input_report(uint8_t service_index, const uint8_t * repor
             continue;
         }
         printf("%c", key);
-        fflush(stdout);
     }
     memcpy(last_keys, new_keys, NUM_KEYS);
 }
@@ -361,11 +360,6 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint
                     handle_outgoing_connection_error();
                     break;
             }
-            break;
-
-        case GATTSERVICE_SUBEVENT_HID_SERVICE_DISCONNECTED:
-            printf("HID service client disconnected\n");
-            hog_start_connect();
             break;
 
         case GATTSERVICE_SUBEVENT_HID_REPORT:
@@ -507,7 +501,7 @@ static void sm_packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *pa
         // continue - query primary services
         printf("Search for HID service.\n");
         app_state = W4_HID_CLIENT_CONNECTED;
-        hids_host_connect(connection_handle, handle_gatt_client_event, protocol_mode, &hids_cid);
+        hids_client_connect(connection_handle, handle_gatt_client_event, protocol_mode, &hids_cid);
     }
 }
 /* LISTING_END */
@@ -533,7 +527,7 @@ int btstack_main(int argc, const char * argv[]){
     // setup ATT server - only needed if LE Peripheral does ATT queries on its own, e.g. Android and iOS
     att_server_init(profile_data, NULL, NULL);
 
-    hids_host_init(hid_descriptor_storage, sizeof(hid_descriptor_storage));
+    hids_client_init(hid_descriptor_storage, sizeof(hid_descriptor_storage));
 
     // register for events from HCI
     hci_event_callback_registration.callback = &packet_handler;

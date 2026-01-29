@@ -78,10 +78,20 @@
 #define AVRCP_BROWSING_MAX_MEDIA_ITEMS              10
 
 #ifdef HAVE_BTSTACK_STDIN
-// Minijambox:
-static const char * device_addr_string = "00:21:3C:AC:F7:38";
-#endif
+// mac 2011: static bd_addr_t remote = {0x04, 0x0C, 0xCE, 0xE4, 0x85, 0xD3};
+// pts: static bd_addr_t remote = {0x00, 0x1B, 0xDC, 0x08, 0x0A, 0xA5};
+// mac 2013: 
+// static const char * device_addr_string = "84:38:35:65:d1:15";
+// iPhone 5S: static const char * device_addr_string = "54:E4:3A:26:A2:39";
+// phone 2013:  
+// static const char * device_addr_string = "B0:34:95:CB:97:C4";
+// iPod 
+// static const char * device_addr_string = "B0:34:95:CB:97:C4";
+// iPhone
+static const char * device_addr_string = "6C:72:E7:10:22:EE";
+
 static bd_addr_t device_addr;
+#endif
 
 typedef enum {
     AVRCP_BROWSING_STATE_IDLE,
@@ -163,11 +173,9 @@ static int playable_folder_index = 0;
 
 static uint16_t browsing_uid_counter = 0;
 
-#ifdef HAVE_BTSTACK_STDIN
 static uint8_t  parent_folder_set = 0;
 static uint8_t  parent_folder_uid[8];
 static char     parent_folder_name[AVRCP_BROWSING_MAX_BROWSABLE_ITEM_NAME_LEN];
-#endif
 
 static avrcp_browsable_item_t folders[AVRCP_BROWSING_MAX_FOLDERS];
 static int folder_index = -1;
@@ -180,7 +188,6 @@ static int media_player_item_index = -1;
 
 static btstack_packet_callback_registration_t hci_event_callback_registration;
 
-#ifdef HAVE_BTSTACK_STDIN
 static uint8_t ertm_buffer[10000];
 static l2cap_ertm_config_t ertm_config = {
     1,  // ertm mandatory
@@ -192,7 +199,7 @@ static l2cap_ertm_config_t ertm_config = {
     4,
     1,     // 16-bit FCS
 };
-#endif
+
 
 static inline int next_index(int * index, int max_value){
     if ((*index) < max_value){
@@ -586,7 +593,6 @@ static void avrcp_browsing_controller_packet_handler(uint8_t packet_type, uint16
                         const uint8_t * attr_value  = avrcp_media_item_iterator_get_attr_value(&media_item_context);
                         printf("    - attr ID 0x%08" PRIx32 ", charset 0x%02x, actual len %d, name %s\n", attr_id, attr_charset, attr_value_length, attr_value);
                     }
-                    break;
                 }
                 default:
                     printf("AVRCP browsing: unknown browsable item type 0%02x\n", data_type);

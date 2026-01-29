@@ -60,18 +60,9 @@ extern "C" {
 #undef reverse_64
 #endif
 
-// use replacement in Visual Studio
-#ifdef _MSC_VER
-#define strncasecmp _strnicmp
-#define strcasecmp _stricmp
-#endif
+// will be moved to daemon/btstack_device_name_db.h
 
 
- /**
-  * @brief returns a value with number of lowest bits set to <1>
-  */
-#define N_BITS(value) ((1<<value) - 1)
- 
 /**
  * @brief The device name type
  */
@@ -109,46 +100,41 @@ int32_t btstack_time_delta(uint32_t time_a, uint32_t time_b);
 int16_t btstack_time16_delta(uint16_t time_a, uint16_t time_b);
 
 /** 
- * @brief Read 08/16/24/32 bit little endian value from buffer
+ * @brief Read 16/24/32 bit little endian value from buffer
  * @param buffer
  * @param position in buffer
  * @return value
  */
-uint8_t  little_endian_read_08(const uint8_t * buffer, int position);
 uint16_t little_endian_read_16(const uint8_t * buffer, int position);
 uint32_t little_endian_read_24(const uint8_t * buffer, int position);
 uint32_t little_endian_read_32(const uint8_t * buffer, int position);
 
-
 /** 
- * @brief Write 08/16/32 bit little endian value into buffer
+ * @brief Write 16/32 bit little endian value into buffer
  * @param buffer
  * @param position in buffer
  * @param value
  */
-void little_endian_store_08(uint8_t * buffer, uint16_t position, uint8_t value);
 void little_endian_store_16(uint8_t * buffer, uint16_t position, uint16_t value);
 void little_endian_store_24(uint8_t * buffer, uint16_t position, uint32_t value);
 void little_endian_store_32(uint8_t * buffer, uint16_t position, uint32_t value);
 
 /** 
- * @brief Read 08/16/24/32 bit big endian value from buffer
+ * @brief Read 16/24/32 bit big endian value from buffer
  * @param buffer
  * @param position in buffer
  * @return value
  */
-uint32_t big_endian_read_08(const uint8_t* buffer, int position);
 uint32_t big_endian_read_16(const uint8_t * buffer, int position);
 uint32_t big_endian_read_24(const uint8_t * buffer, int position);
 uint32_t big_endian_read_32(const uint8_t * buffer, int position);
 
 /** 
- * @brief Write 08/16/32 bit big endian value into buffer
+ * @brief Write 16/32 bit big endian value into buffer
  * @param buffer
  * @param position in buffer
  * @param value
  */
-void big_endian_store_08(uint8_t * buffer, uint16_t position, uint8_t value);
 void big_endian_store_16(uint8_t * buffer, uint16_t position, uint16_t value);
 void big_endian_store_24(uint8_t * buffer, uint16_t position, uint32_t value);
 void big_endian_store_32(uint8_t * buffer, uint16_t position, uint32_t value);
@@ -166,8 +152,8 @@ static inline uint16_t btstack_flip_16(uint16_t value){
  * @return 1 if on big endian
  */
 static inline int btstack_is_big_endian(void){
-	uint16_t test_value = 0x0100;
-	return (int) *(uint8_t*) &test_value;
+	uint16_t sample = 0x0100;
+	return (int) *(uint8_t*) &sample;
 }
 
 /** 
@@ -175,8 +161,8 @@ static inline int btstack_is_big_endian(void){
  * @return 1 if on little endian
  */
 static inline int btstack_is_little_endian(void){
-	uint16_t test_value = 0x0001;
-	return (int) *(uint8_t*) &test_value;
+	uint16_t sample = 0x0001;
+	return (int) *(uint8_t*) &sample;
 }
 
 /**
@@ -392,50 +378,6 @@ uint16_t btstack_strcpy(char * dst, uint16_t dst_size, const char * src);
 void btstack_strcat(char * dst, uint16_t dst_size, const char * src);
 
 /**
- * @brief Calculated the number of characters that would get printed
- * @note same as calling snprintf without a buffer
- * @param format
- * @param argsq
- * @return number of characters, or negative value on error
- */
-int btstack_printf_strlen(const char * format, ...)
-#ifdef __GNUC__
-__attribute__ ((format (__printf__, 1, 2)))
-#endif
-;
-
-
-/**
- * @brief Format string into buffer with '\0' and assert it is large enough
- * @note same as calling snprintf and assert that the string was not truncated
- * @param buffer
- * @param size of buffer
- * @param format
- * @param argsq
- * @return number of characters
- */
-uint16_t btstack_snprintf_assert_complete(char * buffer, size_t size, const char * format, ...)
-#ifdef __GNUC__
-__attribute__ ((format (__printf__, 3, 4)))
-#endif
-;
-
-/**
- * @brief Format string into buffer, truncated if necessary. Output string is '\0' terminated
- * @note similar to calling snprintf but returns the length of the output string
- * @param buffer
- * @param size of buffer
- * @param format
- * @param argsq
- * @return number of characters
- */
-uint16_t btstack_snprintf_best_effort(char * buffer, size_t size, const char * format, ...)
-#ifdef __GNUC__
-__attribute__ ((format (__printf__, 3, 4)))
-#endif
-;
-
-/**
  * Returns the number of leading 0-bits in x, starting at the most significant bit position.
  * If x is 0, the result is undefined.
  * @note maps to __builtin_clz for gcc and clang
@@ -474,22 +416,6 @@ uint16_t btstack_virtual_memcpy(
     const uint8_t * field_data, uint16_t field_len, uint16_t field_offset, 
     uint8_t * buffer, uint16_t buffer_size, uint16_t buffer_offset);
 
-/**
- * Convert bytes to hex string
- * @param dst buffer for hex string, needs to be twice as large as src_size + 1
- * @param src_data
- * @param src_size
- */
-void btstack_bytes_to_hex(char * dst, const uint8_t * src_data, uint16_t src_size);
-
-/**
- * Convert hex string to bytes
- * @param dst
- * @param dst_size
- * @param src
- * @return true if conversion was successful
- */
-bool btstack_hex_to_bytes(uint8_t * dst, uint16_t dst_size, const char * src);
 
 /* API_END */
 

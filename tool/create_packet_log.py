@@ -51,7 +51,7 @@ def generateTimestamp(t):
 		if len(parts) == 1:
 			# only time, prepend fixed date
 			have_date = False
-			t = "2000-01-01 " + t
+			t = "2000-01-01 " + t;
 
 		# handle ms
 		try: 
@@ -119,7 +119,7 @@ with open (outfile, 'wb') as fout:
 				# skip empty lines
 				if len(line) == 0: 
 					continue
-				parts = re.match(r'\[(.*)\] (.*)', line)
+				parts = re.match('\[(.*)\] (.*)', line)
 				if parts and len(parts.groups()) == 2:
 					(timestamp, line) = parts.groups()
 				rest = chop(line,'CMD => ')
@@ -145,14 +145,6 @@ with open (outfile, 'wb') as fout:
 				rest = chop(line,'SCO <= ')
 				if rest:
 					handleHexPacket(fout, timestamp, 9, rest)
-					continue
-				rest = chop(line,'ISO => ')
-				if rest:
-					handleHexPacket(fout, timestamp, 0x0c, rest)
-					continue
-				rest = chop(line,'ISO <= ')
-				if rest:
-					handleHexPacket(fout, timestamp, 0x0d, rest)
 					continue
 				rest = chop(line,'LOG -- ')
 				if rest:
