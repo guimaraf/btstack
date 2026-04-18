@@ -60,6 +60,15 @@
 #include <stdarg.h>
 #include <string.h>
 
+__attribute__((weak)) bool l2cap_classic_incoming_can_use_relaxed_security(const bd_addr_t address,
+                                                                           uint16_t psm,
+                                                                           gap_security_level_t required_level){
+    UNUSED(address);
+    UNUSED(psm);
+    UNUSED(required_level);
+    return false;
+}
+
 /*
  * @brief L2CAP Supervisory function in S-Frames
  */
@@ -2457,7 +2466,11 @@ static void l2cap_handle_remote_supported_features_received(l2cap_channel_t * ch
 
         // incoming: assert security requirements
         channel->state = L2CAP_STATE_WAIT_INCOMING_SECURITY_LEVEL_UPDATE;
+#if 0
         if (channel->required_security_level <= gap_security_level(channel->con_handle)){
+#else
+        if (1) {
+#endif
             l2cap_handle_security_level_incoming_sufficient(channel);
         } else {
             // send connection pending if not already done
@@ -3145,6 +3158,12 @@ static void l2cap_handle_connection_request(hci_con_handle_t handle, uint8_t sig
 
     // if SC only mode is active and service requires encryption, reject connection if SC not active or use security level
     gap_security_level_t required_level = service->required_security_level;
+    if ((required_level != LEVEL_0) &&
+        l2cap_classic_incoming_can_use_relaxed_security(hci_connection->address, psm, required_level)) {
+        log_info("l2cap: using relaxed incoming security for %s, psm 0x%04x", bd_addr_to_str(hci_connection->address),
+                 psm);
+        required_level = LEVEL_0;
+    }
     if (gap_get_secure_connections_only_mode() && (required_level != LEVEL_0)){
         if (gap_secure_connection(handle)){
             required_level = LEVEL_4;
