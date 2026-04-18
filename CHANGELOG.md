@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 
+## Release v1.6.3
+
+### Fixed
+- L2CAP: restored incoming BR/EDR security validation instead of accepting incoming channels unconditionally
+- Pico W and Pico 2 W Bluetooth builds can again keep the secure baseline required by original controllers
+
+
 ## Release v1.6.2
 
 ### Added
@@ -1279,5 +1286,4 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - L2CAP: fix default remote MTU as 672 instead of 48 (Minimal MTU)
 - HCI: avoid double free during halting
 - SM: fixed reconnect using legacy pairing in slave role
-
 
